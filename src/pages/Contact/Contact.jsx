@@ -541,12 +541,12 @@ const Contact = () => {
                 <div className="mt-3 flex items-start gap-3 text-sm text-slate-500">
                   <Globe2 className="w-4 h-4 text-[#D92B20] flex-shrink-0 mt-0.5" />
                   <a
-                    href="https://www.gogaStainless.com"
+                    href="https://www.gogastainless.com"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="hover:text-[#D92B20] transition-colors break-all"
                   >
-                    www.gogaStainless.com
+                    www.gogastainless.com
                   </a>
                 </div>
               </div>
@@ -624,12 +624,12 @@ const Contact = () => {
                 <div className="mt-3 flex items-start gap-3 text-sm text-slate-500">
                   <Globe2 className="w-4 h-4 text-[#D92B20] flex-shrink-0 mt-0.5" />
                   <a
-                    href="https://www.gogaStainless.com"
+                    href="https://www.gogastainless.com"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="hover:text-[#D92B20] transition-colors break-all"
                   >
-                    www.gogaStainless.com
+                    www.gogastainless.com
                   </a>
                 </div>
               </div>
@@ -673,7 +673,7 @@ const Contact = () => {
                     WhatsApp
                   </span>
                   <span className="text-sm text-slate-600 group-hover/link:text-[#D92B20] transition-colors">
-                    +91 845 282 8260 / 022-6659 5141
+                    +91 845 282 8260
                   </span>
                 </a>
 
@@ -709,7 +709,7 @@ const Contact = () => {
                   </div>
                 </div>
                 <a
-                  href="https://www.gogaStainless.com"
+                  href="https://www.gogastainless.com"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex flex-col hover:text-[#D92B20] transition-colors group/link"
@@ -718,7 +718,7 @@ const Contact = () => {
                     Website
                   </span>
                   <span className="text-sm text-slate-600 group-hover/link:text-[#D92B20] transition-colors break-all">
-                    www.gogaStainless.com
+                    www.gogastainless.com
                   </span>
                 </a>
               </div>

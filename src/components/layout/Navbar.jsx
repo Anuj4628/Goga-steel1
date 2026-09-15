@@ -1,6 +1,6 @@
 // src/components/layout/Navbar.jsx
 import { useState } from "react";
-import { NavLink, Link } from "react-router-dom";
+import { NavLink, Link, useNavigate, useLocation } from "react-router-dom";
 import { HiBars3, HiXMark, HiChevronDown } from "react-icons/hi2";
 import { FaFacebookF, FaInstagram, FaWhatsapp } from "react-icons/fa";
 import { FiPhone, FiMail } from "react-icons/fi";
@@ -19,6 +19,31 @@ export default function Navbar() {
   const [mobileMenu, setMobileMenu] = useState(false);
   const [mobileDropdown, setMobileDropdown] = useState("");
   const [dropdown, setDropdown] = useState("");
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleLogoClick = (e) => {
+    e.preventDefault();
+    setMobileMenu(false);
+    if (location.pathname === "/") {
+      const heroSection = document.getElementById("hero");
+      if (heroSection) {
+        heroSection.scrollIntoView({ behavior: "smooth" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    } else {
+      navigate("/");
+      setTimeout(() => {
+        const heroSection = document.getElementById("hero");
+        if (heroSection) {
+          heroSection.scrollIntoView({ behavior: "smooth" });
+        } else {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      }, 100);
+    }
+  };
 
   const renderDropdown = (title, path, data) => (
     <div
@@ -229,7 +254,8 @@ export default function Navbar() {
             <div className="shrink-0 pl-4 sm:pl-6 lg:pl-8 py-1 flex items-center relative z-10">
               <Link
                 to="/"
-                className="flex items-center min-w-0 max-w-full group"
+                onClick={handleLogoClick}
+                className="flex items-center min-w-0 max-w-full group cursor-pointer"
               >
                 <img
                   src={logoIcon}

@@ -22,8 +22,8 @@ const contact = {
   email: "gogastainless@gmail.com",
   secondaryEmail: "info.gogastainless@gmail.com",
   emails: ["gogastainless@gmail.com", "info.gogastainless@gmail.com"],
-  website: "www.gogaStainless.com",
-  websiteUrl: "https://www.gogaStainless.com",
+  website: "www.gogastainless.com",
+  websiteUrl: "https://www.gogastainless.com",
   mapLink: "https://maps.google.com/?q=P.B.+Marg,+Mumbai+400004",
 
   phoneString: "+91 845 282 8260",

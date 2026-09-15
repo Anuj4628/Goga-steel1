@@ -42,8 +42,8 @@ export const company = {
   email: "gogastainless@gmail.com",
   secondaryEmail: "info.gogastainless@gmail.com",
   emails: ["gogastainless@gmail.com", "info.gogastainless@gmail.com"],
-  website: "www.gogaStainless.com",
-  websiteUrl: "https://www.gogaStainless.com",
+  website: "www.gogastainless.com",
+  websiteUrl: "https://www.gogastainless.com",
   meta: {
     title: "GOGA STAINLESS | Stainless Steel & Industrial Products Supplier",
     description:
