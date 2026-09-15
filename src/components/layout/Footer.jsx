@@ -25,6 +25,7 @@ const productCategories = [
   { name: "Round, Square & Hex Bars", slug: "round-bars" },
   { name: "Fasteners & Nut Bolts", slug: "fasteners" },
   { name: "Dairy Fittings & Valves", slug: "dairy-fittings" },
+  { name: "Product & Decoratives", slug: "product-decoratives" },
 ];
 
 const Footer = () => {
