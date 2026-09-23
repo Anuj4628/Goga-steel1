@@ -479,8 +479,8 @@ const Contact = () => {
                 <div className="flex items-start gap-3 text-sm text-slate-500">
                   <MapPin className="w-4 h-4 text-[#D92B20] flex-shrink-0 mt-0.5" />
                   <p className="leading-relaxed">
-                    Office No 62, Harharwala Building, Plot 408, Patthe Bapurao
-                    Marg, Golpitha Junction, Girgaon, Mumbai-400004
+                    Plot No-408, Har-Har Wala Bldg, Office No-62 3rd Floor, P.B.
+                    Marg, Mumbai-400 004, Mumbai, Maharashtra 400004
                   </p>
                 </div>
                 <div className="mt-3 flex items-start gap-3 text-sm text-slate-500">
@@ -583,8 +583,8 @@ const Contact = () => {
                 <div className="flex items-start gap-3 text-sm text-slate-500">
                   <MapPin className="w-4 h-4 text-[#D92B20] flex-shrink-0 mt-0.5" />
                   <p className="leading-relaxed">
-                    Office No 62, Harharwala Building, Plot 408, Patthe Bapurao
-                    Marg, Golpitha Junction, Girgaon, Mumbai-400004
+                    Plot No-408, Har-Har Wala Bldg, Office No-62 3rd Floor, P.B.
+                    Marg, Mumbai-400 004, Mumbai, Maharashtra 400004
                   </p>
                 </div>
                 <div className="mt-3 flex items-start gap-3 text-sm text-slate-500">
@@ -1040,6 +1040,25 @@ const Contact = () => {
             transition={{ duration: 0.8 }}
             className="relative mt-12"
           >
+            <div className="absolute top-4 left-4 sm:top-6 sm:left-6 max-w-[280px] sm:max-w-xs rounded-xl bg-white p-4 shadow-2xl border border-slate-200 z-20">
+              <h4 className="text-sm font-bold text-slate-900 tracking-tight">
+                GOGA STAINLESS
+              </h4>
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                Plot No-408, Har-Har Wala Bldg, Office No-62 3rd Floor, P.B.
+                Marg, Mumbai-400 004, Mumbai, Maharashtra 400004
+              </p>
+              <a
+                href="https://www.google.com/maps/dir//Plot+No-408,+Har-Har+Wala+Bldg,+Office+No-62+3rd+Floor,+P.B.+Marg,+Mumbai-400+004,+Mumbai,+Maharashtra+400004"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#1a73e8] hover:underline"
+              >
+                <span>View larger map</span>
+                <span className="text-[10px]">↗</span>
+              </a>
+            </div>
+
             <div className="absolute top-6 right-6 hidden md:flex items-center gap-4 rounded-xl bg-white px-5 py-3 shadow-2xl border border-slate-200 z-20">
               <img
                 src={logo}
@@ -1061,7 +1080,7 @@ const Contact = () => {
 
             <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-2xl">
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3773.344415865406!2d72.831571!3d18.9898411!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3be7ce171d455555%3A0xa92b2e172cc31cf1!2sOffice%20No%2062%2C%203rd%20Floor%2C%20Harharwala%20Building%2C%20Plot%20408%2C%20Patthe%20Bapurao%20Marg%2C%20Golpitha%20Junction%2C%20Girgaon%2C%20Mumbai%2C%20Maharashtra%20400004!5e0!3m2!1sen!2sin!4v1710000000000!5m2!1sen!2sin"
+                src="https://maps.google.com/maps?q=Plot+No-408,+Har-Har+Wala+Bldg,+Office+No-62+3rd+Floor,+P.B.+Marg,+Mumbai-400+004,+Mumbai,+Maharashtra+400004&t=&z=15&ie=UTF8&iwloc=&output=embed"
                 width="100%"
                 height="620"
                 style={{ border: 0 }}
@@ -1069,7 +1088,7 @@ const Contact = () => {
                 loading="lazy"
                 referrerPolicy="strict-origin-when-cross-origin"
                 className="w-full"
-                title="GOGA STAINLESS - Office No 62, 3rd Floor, Harharwala Building, Plot 408, Patthe Bapurao Marg, Golpitha Junction, Girgaon, Mumbai"
+                title="GOGA STAINLESS - Plot No-408, Har-Har Wala Bldg, Office No-62 3rd Floor, P.B. Marg, Mumbai-400 004, Mumbai, Maharashtra 400004"
               />
             </div>
           </motion.div>
@@ -1088,9 +1107,8 @@ const Contact = () => {
                   Head Office
                 </h3>
                 <p className="mt-3 leading-7 text-slate-300 text-sm">
-                  Office No 62, 3rd Floor, Harharwala Building, Plot 408, Patthe
-                  Bapurao Marg, Golpitha Junction, Girgaon, Mumbai-400004,
-                  Maharashtra
+                  Plot No-408, Har-Har Wala Bldg, Office No-62 3rd Floor, P.B.
+                  Marg, Mumbai-400 004, Mumbai, Maharashtra 400004
                 </p>
                 <div className="mt-3 flex flex-wrap gap-4 text-sm">
                   <a
@@ -1122,7 +1140,7 @@ const Contact = () => {
             </div>
 
             <a
-              href="https://www.google.com/maps/dir//Office+No+62,+3rd+Floor,+Harharwala+Building,+Plot+408,+Patthe+Bapurao+Marg,+Golpitha+Junction,+Girgaon,+Mumbai,+Maharashtra+400004/@19.4390303,72.8160861,14z"
+              href="https://www.google.com/maps/dir//Plot+No-408,+Har-Har+Wala+Bldg,+Office+No-62+3rd+Floor,+P.B.+Marg,+Mumbai-400+004,+Mumbai,+Maharashtra+400004"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-3 rounded-full bg-[#D92B20] hover:bg-[#c08a1a] px-8 py-4 text-lg font-semibold text-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-[#D92B20]/25"
@@ -1140,8 +1158,8 @@ const Contact = () => {
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#D92B20] flex-shrink-0">
             <Diamond size={16} className="text-[#173F52] fill-[#173F52]" />
           </span>
-          Operational Warehouse: Office No 62, Harharwala Building, Plot 408,
-          Patthe Bapurao Marg, Golpitha Junction, Girgaon, Mumbai-400004
+          Operational Warehouse: Plot No-408, Har-Har Wala Bldg, Office No-62
+          3rd Floor, P.B. Marg, Mumbai-400 004, Mumbai, Maharashtra 400004
         </h6>
       </section>
     </>

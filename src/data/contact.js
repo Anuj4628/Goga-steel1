@@ -5,9 +5,9 @@ const contact = {
   gstin: "27AIWPL7180J2ZE",
   address: {
     office:
-      "Plot No-408/428, Har-Har Wala Bldg, House No-62A, 3rd Floor, P.B. Marg, Mumbai-400004",
+      "Plot No-408, Har-Har Wala Bldg, Office No-62 3rd Floor, P.B. Marg, Mumbai-400 004, Mumbai, Maharashtra 400004",
     warehouse:
-      "Plot No-408/428, Har-Har Wala Bldg, House No-62A, 3rd Floor, P.B. Marg, Mumbai-400004",
+      "Plot No-408, Har-Har Wala Bldg, Office No-62 3rd Floor, P.B. Marg, Mumbai-400 004, Mumbai, Maharashtra 400004",
   },
   phone: {
     primary: "+91 845 282 8260",
@@ -24,7 +24,7 @@ const contact = {
   emails: ["gogastainless@gmail.com", "info.gogastainless@gmail.com"],
   website: "www.gogastainless.com",
   websiteUrl: "https://www.gogastainless.com",
-  mapLink: "https://maps.google.com/?q=P.B.+Marg,+Mumbai+400004",
+  mapLink: "https://maps.google.com/?q=Plot+No-408,+Har-Har+Wala+Bldg,+Office+No-62+3rd+Floor,+P.B.+Marg,+Mumbai-400+004,+Mumbai,+Maharashtra+400004",
 
   phoneString: "+91 845 282 8260",
   whatsappString: "+91 845 282 8260",
