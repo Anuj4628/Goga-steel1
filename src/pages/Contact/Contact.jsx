@@ -19,6 +19,9 @@ import {
   Loader2,
   MessageCircle,
   X,
+  Copy,
+  Check,
+  ExternalLink,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaArrowRight } from "react-icons/fa";
@@ -31,21 +34,29 @@ import testimonials from "../../data/testimonials";
 const Contact = () => {
   const [formData, setFormData] = useState({
     name: "",
-    phone: "",
+    company: "",
     email: "",
+    phone: "",
+    product: "",
+    quantity: "",
     specification: "",
     message: "",
   });
 
+  const [errors, setErrors] = useState({});
+  const [emailMethod, setEmailMethod] = useState("mailto"); // "mailto" | "gmail" | "outlook"
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [lastPreparedEmail, setLastPreparedEmail] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (showSuccess) {
       const timer = setTimeout(() => {
         setShowSuccess(false);
-      }, 6000);
+      }, 15000);
       return () => clearTimeout(timer);
     }
   }, [showSuccess]);
@@ -54,7 +65,7 @@ const Contact = () => {
     if (showError) {
       const timer = setTimeout(() => {
         setShowError(false);
-      }, 5000);
+      }, 7000);
       return () => clearTimeout(timer);
     }
   }, [showError]);
@@ -69,51 +80,226 @@ const Contact = () => {
     visible: { opacity: 1, x: 0, transition: { duration: 0.8 } },
   };
 
+  const validateField = (name, value) => {
+    switch (name) {
+      case "name":
+        if (!value.trim() || value.trim().length < 2) {
+          return "Representative Name is required (minimum 2 characters).";
+        }
+        break;
+      case "company":
+        if (!value.trim()) {
+          return "Company Name is required.";
+        }
+        break;
+      case "email": {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!value.trim() || !emailRegex.test(value.trim())) {
+          return "Please enter a valid corporate email address.";
+        }
+        break;
+      }
+      case "phone": {
+        const phoneClean = value.replace(/[\s\-\(\)\+]/g, "");
+        if (!value.trim() || phoneClean.length < 7) {
+          return "Please enter a valid phone number (minimum 7 digits).";
+        }
+        break;
+      }
+      case "product":
+        if (!value.trim()) {
+          return "Please specify the product or material required.";
+        }
+        break;
+      case "quantity":
+        if (!value.trim()) {
+          return "Please specify the quantity or volume needed.";
+        }
+        break;
+      case "message":
+        if (!value.trim() || value.trim().length < 5) {
+          return "Please describe your requirements (minimum 5 characters).";
+        }
+        break;
+      default:
+        return "";
+    }
+    return "";
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    const err = validateField(name, value);
+    if (err) {
+      setErrors((prev) => ({ ...prev, [name]: err }));
+    }
+  };
+
+  const validateAll = () => {
+    const newErrors = {};
+    const fieldsToValidate = ["name", "company", "email", "phone", "product", "quantity", "message"];
+    fieldsToValidate.forEach((f) => {
+      const err = validateField(f, formData[f]);
+      if (err) newErrors[f] = err;
+    });
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const buildEmailContent = (data) => {
+    const recipient = "gogastainless@gmail.com";
+    const cc = "info.gogastainless@gmail.com";
+    const subject = `Quote Request: ${data.product.trim()} - ${data.name.trim()} (${data.company.trim() || "Client"})`;
+
+    const bodyLines = [
+      "==================================================",
+      "          GOGA STAINLESS - QUOTE INQUIRY          ",
+      "==================================================",
+      "",
+      "CLIENT & CONTACT INFORMATION:",
+      "--------------------------------------------------",
+      `• Representative Name : ${data.name.trim()}`,
+      `• Company Name        : ${data.company.trim() || "N/A"}`,
+      `• Corporate Email     : ${data.email.trim()}`,
+      `• Phone Number        : ${data.phone.trim()}`,
+      "",
+      "PRODUCT & MATERIAL SPECIFICATIONS:",
+      "--------------------------------------------------",
+      `• Product / Material  : ${data.product.trim() || "N/A"}`,
+      `• Required Quantity   : ${data.quantity.trim() || "N/A"}`,
+      `• Grade / Spec        : ${data.specification.trim() || "Standard / Commercial"}`,
+      "",
+      "DETAILED REQUIREMENTS & MESSAGE:",
+      "--------------------------------------------------",
+      data.message.trim(),
+      "",
+      "--------------------------------------------------",
+      "Source: GOGA STAINLESS Website (https://www.gogastainless.com)",
+      `Date: ${new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}`,
+      "==================================================",
+    ];
+
+    const bodyText = bodyLines.join("\r\n");
+
+    // Standard RFC-compliant URL encoding with zero raw unescaped spaces
+    const encodedSubject = encodeURIComponent(subject);
+    const encodedBody = encodeURIComponent(bodyText);
+    const encodedCc = encodeURIComponent(cc).replace(/%40/g, "@");
+    const encodedTo = encodeURIComponent(recipient).replace(/%40/g, "@");
+
+    const mailtoUrl = `mailto:${recipient}?cc=${encodedCc}&subject=${encodedSubject}&body=${encodedBody}`;
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodedTo}&cc=${encodedCc}&su=${encodedSubject}&body=${encodedBody}`;
+    const outlookUrl = `https://outlook.live.com/mail/0/deeplink/compose?to=${encodedTo}&cc=${encodedCc}&subject=${encodedSubject}&body=${encodedBody}`;
+
+    return {
+      to: recipient,
+      cc,
+      subject,
+      bodyText,
+      mailtoUrl,
+      gmailUrl,
+      outlookUrl,
+    };
+  };
+
+  const dispatchMail = (emailData, method) => {
+    if (method === "gmail") {
+      const opened = window.open(emailData.gmailUrl, "_blank", "noopener,noreferrer");
+      if (!opened) {
+        window.location.href = emailData.gmailUrl;
+      }
+      return true;
+    }
+
+    if (method === "outlook") {
+      const opened = window.open(emailData.outlookUrl, "_blank", "noopener,noreferrer");
+      if (!opened) {
+        window.location.href = emailData.outlookUrl;
+      }
+      return true;
+    }
+
+    // Default mailto method:
+    // Dispatch using a hidden DOM anchor click without target="_blank"
+    // This triggers the OS default mail client cleanly without opening empty browser tabs
+    try {
+      const link = document.createElement("a");
+      link.href = emailData.mailtoUrl;
+      link.rel = "noopener noreferrer";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (link.parentNode) {
+          link.parentNode.removeChild(link);
+        }
+      }, 500);
+      return true;
+    } catch (err) {
+      console.warn("Anchor click dispatch fallback:", err);
+      window.location.assign(emailData.mailtoUrl);
+      return true;
+    }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    if (!validateAll()) {
+      setShowError(true);
+      setErrorMessage("Please complete all required fields highlighted below.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const subject = `Inquiry from ${formData.name} - GOGA STAINLESS`;
+      const emailData = buildEmailContent(formData);
+      setLastPreparedEmail(emailData);
 
-      const body =
-        `%0A%0A` +
-        `---------- INQUIRY DETAILS ----------%0A%0A` +
-        `Name: ${formData.name}%0A` +
-        `Phone: ${formData.phone}%0A` +
-        `Email: ${formData.email}%0A` +
-        `Component Specification: ${formData.specification || "N/A"}%0A%0A` +
-        `---------- REQUIREMENTS ----------%0A%0A` +
-        `${formData.message}%0A%0A` +
-        `---------- %0A` +
-        `This inquiry was sent from the GOGA STAINLESS Website Contact Form`;
-
-      const mailtoLink = `mailto:gogastainless@gmail.com?cc=info.gogastainless@gmail.com&subject=${encodeURIComponent(subject)}&body=${body}`;
-
-      window.location.href = mailtoLink;
+      dispatchMail(emailData, emailMethod);
 
       setShowSuccess(true);
       setShowError(false);
 
+      // Reset form on successful submission
       setFormData({
         name: "",
-        phone: "",
+        company: "",
         email: "",
+        phone: "",
+        product: "",
+        quantity: "",
         specification: "",
         message: "",
       });
+      setErrors({});
     } catch (error) {
       console.error("Form submission error:", error);
       setShowError(true);
+      setErrorMessage("Unable to open your email client. Please contact us directly at gogastainless@gmail.com.");
       setShowSuccess(false);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleCopyQuote = () => {
+    if (!lastPreparedEmail) return;
+    const textToCopy = `To: ${lastPreparedEmail.to}\nCC: ${lastPreparedEmail.cc}\nSubject: ${lastPreparedEmail.subject}\n\n${lastPreparedEmail.bodyText}`;
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 3000);
+    });
   };
 
   const closeSuccessToast = () => {
@@ -126,58 +312,99 @@ const Contact = () => {
 
   return (
     <>
-      {/* Success Toast */}
+      {/* Success Notification */}
       <AnimatePresence>
         {showSuccess && (
           <motion.div
-            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            initial={{ opacity: 0, y: -40, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -50, scale: 0.9 }}
-            transition={{ duration: 0.4, type: "spring", stiffness: 300 }}
-            className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] w-full max-w-lg mx-4"
+            exit={{ opacity: 0, y: -40, scale: 0.96 }}
+            transition={{ duration: 0.35, type: "spring", stiffness: 300 }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] w-full max-w-xl mx-4 px-4"
           >
-            <div className="relative bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl shadow-2xl p-5 overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 to-emerald-500"></div>
-              <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-2xl -mr-10 -mt-10"></div>
-              <div className="absolute bottom-0 left-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl -ml-10 -mb-10"></div>
+            <div className="relative bg-white border border-emerald-300 rounded-2xl shadow-2xl p-5 overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-400 via-teal-500 to-green-500"></div>
 
-              <div className="relative flex items-start gap-4">
+              <div className="flex items-start gap-4">
                 <div className="flex-shrink-0">
-                  <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center border border-green-200">
-                    <CheckCircle className="w-6 h-6 text-green-500" />
+                  <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center border border-emerald-200">
+                    <CheckCircle className="w-6 h-6 text-emerald-600" />
                   </div>
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-bold text-green-800 uppercase tracking-wider">
-                    Email Prepared Successfully!
-                  </h4>
-                  <p className="text-sm text-green-700 mt-1 leading-relaxed">
-                    Your inquiry has been prepared. Please check your email
-                    client to send the message.
-                  </p>
-                  <div className="mt-2 flex items-center gap-2 text-xs text-green-600">
-                    <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    <span>Redirecting to your email client...</span>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-base font-bold text-slate-900 uppercase tracking-wide">
+                      Quote Inquiry Prepared!
+                    </h4>
+                    <button
+                      onClick={closeSuccessToast}
+                      className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                      aria-label="Close notification"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
                   </div>
+
+                  <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+                    Your quote details have been generated and directed to{" "}
+                    <span className="font-semibold text-slate-800">gogastainless@gmail.com</span> (CC:{" "}
+                    <span className="font-semibold text-slate-800">info.gogastainless@gmail.com</span>).
+                  </p>
+
+                  {lastPreparedEmail && (
+                    <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Didn't see your email client launch automatically? Choose an option:
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <a
+                          href={lastPreparedEmail.gmailUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          Open in Gmail (Web)
+                        </a>
+                        <a
+                          href={lastPreparedEmail.outlookUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          Open in Outlook (Web)
+                        </a>
+                        <button
+                          type="button"
+                          onClick={handleCopyQuote}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                        >
+                          {copied ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <span className="text-emerald-700">Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copy Quote Details</span>
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => dispatchMail(lastPreparedEmail, "mailto")}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>Re-launch Mail App</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-
-                <button
-                  onClick={closeSuccessToast}
-                  className="flex-shrink-0 p-1 hover:bg-green-200/50 rounded-lg transition-colors text-green-600"
-                  aria-label="Close notification"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="relative mt-3 w-full h-1 bg-green-200 rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: "100%" }}
-                  animate={{ width: "0%" }}
-                  transition={{ duration: 6, ease: "linear" }}
-                  className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full"
-                />
               </div>
             </div>
           </motion.div>
@@ -188,52 +415,45 @@ const Contact = () => {
       <AnimatePresence>
         {showError && (
           <motion.div
-            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            initial={{ opacity: 0, y: -40, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -50, scale: 0.9 }}
-            transition={{ duration: 0.4, type: "spring", stiffness: 300 }}
-            className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] w-full max-w-lg mx-4"
+            exit={{ opacity: 0, y: -40, scale: 0.96 }}
+            transition={{ duration: 0.35, type: "spring", stiffness: 300 }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] w-full max-w-lg mx-4 px-4"
           >
-            <div className="relative bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 rounded-2xl shadow-2xl p-5 overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-400 to-rose-500"></div>
+            <div className="relative bg-white border border-red-300 rounded-2xl shadow-2xl p-5 overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-500 to-rose-600"></div>
 
               <div className="relative flex items-start gap-4">
                 <div className="flex-shrink-0">
-                  <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center border border-red-200">
-                    <span className="text-2xl">⚠️</span>
+                  <div className="w-11 h-11 rounded-xl bg-red-100 flex items-center justify-center border border-red-200">
+                    <span className="text-xl">⚠️</span>
                   </div>
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-bold text-red-800 uppercase tracking-wider">
-                    Failed to Open Email
-                  </h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-red-800 uppercase tracking-wider">
+                      Please Check Details
+                    </h4>
+                    <button
+                      onClick={closeErrorToast}
+                      className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                      aria-label="Close notification"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
                   <p className="text-sm text-red-700 mt-1 leading-relaxed">
-                    Unable to open your email client. Please contact us directly
-                    at{" "}
-                    <a
-                      href="mailto:gogastainless@gmail.com"
-                      className="font-bold underline hover:text-red-900"
-                    >
-                      gogastainless@gmail.com
-                    </a>{" "}
-                    or{" "}
-                    <a
-                      href="mailto:info.gogastainless@gmail.com"
-                      className="font-bold underline hover:text-red-900"
-                    >
-                      info.gogastainless@gmail.com
+                    {errorMessage || "Unable to proceed with email preparation."}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Need immediate assistance? Call us directly at{" "}
+                    <a href="tel:+918452828260" className="font-bold text-[#D92B20] hover:underline">
+                      +91 845 282 8260
                     </a>
                   </p>
                 </div>
-
-                <button
-                  onClick={closeErrorToast}
-                  className="flex-shrink-0 p-1 hover:bg-red-200/50 rounded-lg transition-colors text-red-600"
-                  aria-label="Close notification"
-                >
-                  <X className="w-5 h-5" />
-                </button>
               </div>
             </div>
           </motion.div>
@@ -750,10 +970,18 @@ const Contact = () => {
               <span className="text-[#D92B20] block mt-1">Inquiry</span>
             </h2>
 
-            <div className="mt-4 rounded-xl bg-blue-50 border border-blue-200 p-3 text-blue-700 text-xs font-medium flex items-center gap-2">
-              <span className="text-lg">📧</span>
-              This will open your default email client with pre-filled
-              information
+            <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200 p-3.5 text-xs font-medium text-slate-700 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="text-base">📧</span>
+                <span>
+                  {emailMethod === "mailto" && "Direct default email client launch (Outlook, Apple Mail, Thunderbird)."}
+                  {emailMethod === "gmail" && "Opens Google Gmail web compose in a new tab with pre-filled details."}
+                  {emailMethod === "outlook" && "Opens Microsoft Outlook / 365 web compose with pre-filled details."}
+                </span>
+              </div>
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-slate-200/70 text-slate-700 whitespace-nowrap">
+                {emailMethod === "mailto" ? "System Mail" : emailMethod === "gmail" ? "Gmail Web" : "Outlook Web"}
+              </span>
             </div>
 
             <div className="mt-4 rounded-xl border border-[#D92B20]/20 bg-[#D92B20]/5 p-4 md:p-5 relative overflow-hidden flex items-center gap-4">
@@ -770,96 +998,240 @@ const Contact = () => {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4 mt-6">
+            <form onSubmit={handleSubmit} className="space-y-4 mt-6" noValidate>
               <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4">
+                {/* 1. Name */}
                 <div className="space-y-1.5">
-                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500">
-                    Representative Name *
+                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
+                    <span>Representative Name *</span>
                   </label>
                   <input
                     type="text"
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
-                    placeholder="John Doe"
+                    onBlur={handleBlur}
+                    placeholder="e.g. John Doe"
                     required
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20"
+                    className={`h-12 w-full rounded-xl border ${
+                      errors.name ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
+                    } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
                   />
+                  {errors.name && (
+                    <p className="text-red-500 text-xs font-medium mt-1">{errors.name}</p>
+                  )}
                 </div>
 
+                {/* 2. Company Name */}
                 <div className="space-y-1.5">
-                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500">
-                    Phone Matrix Contact *
+                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
+                    <span>Company Name *</span>
                   </label>
                   <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
+                    type="text"
+                    name="company"
+                    value={formData.company}
                     onChange={handleChange}
-                    placeholder="+91 00000 00000"
+                    onBlur={handleBlur}
+                    placeholder="e.g. Acme Industrial Corp"
                     required
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20"
+                    className={`h-12 w-full rounded-xl border ${
+                      errors.company ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
+                    } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
                   />
+                  {errors.company && (
+                    <p className="text-red-500 text-xs font-medium mt-1">{errors.company}</p>
+                  )}
                 </div>
 
+                {/* 3. Corporate Email */}
                 <div className="space-y-1.5">
-                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500">
-                    Corporate Email Address *
+                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
+                    <span>Corporate Email Address *</span>
                   </label>
                   <input
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
+                    onBlur={handleBlur}
                     placeholder="company@domain.com"
                     required
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20"
+                    className={`h-12 w-full rounded-xl border ${
+                      errors.email ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
+                    } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
                   />
+                  {errors.email && (
+                    <p className="text-red-500 text-xs font-medium mt-1">{errors.email}</p>
+                  )}
                 </div>
 
+                {/* 4. Phone Contact */}
                 <div className="space-y-1.5">
-                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500">
-                    Component Specification
+                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
+                    <span>Phone Matrix Contact *</span>
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    placeholder="+91 00000 00000"
+                    required
+                    className={`h-12 w-full rounded-xl border ${
+                      errors.phone ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
+                    } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
+                  />
+                  {errors.phone && (
+                    <p className="text-red-500 text-xs font-medium mt-1">{errors.phone}</p>
+                  )}
+                </div>
+
+                {/* 5. Product / Material */}
+                <div className="space-y-1.5">
+                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
+                    <span>Product / Material *</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="product"
+                    value={formData.product}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    placeholder="e.g. Stainless Steel Seamless Pipes"
+                    required
+                    className={`h-12 w-full rounded-xl border ${
+                      errors.product ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
+                    } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
+                  />
+                  {errors.product && (
+                    <p className="text-red-500 text-xs font-medium mt-1">{errors.product}</p>
+                  )}
+                </div>
+
+                {/* 6. Quantity */}
+                <div className="space-y-1.5">
+                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
+                    <span>Quantity / Volume *</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="quantity"
+                    value={formData.quantity}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    placeholder="e.g. 500 Meters / 10 Tons"
+                    required
+                    className={`h-12 w-full rounded-xl border ${
+                      errors.quantity ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
+                    } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
+                  />
+                  {errors.quantity && (
+                    <p className="text-red-500 text-xs font-medium mt-1">{errors.quantity}</p>
+                  )}
+                </div>
+
+                {/* 7. Component Specification (span 2) */}
+                <div className="sm:col-span-2 space-y-1.5">
+                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
+                    <span>Component Specification / Grade</span>
+                    <span className="text-[10px] text-slate-400 font-normal lowercase tracking-normal">optional</span>
                   </label>
                   <input
                     type="text"
                     name="specification"
                     value={formData.specification}
                     onChange={handleChange}
-                    placeholder="e.g. ASTM A312 TP304"
+                    placeholder="e.g. ASTM A312 TP304, Sch 40, Bright Annealed"
                     className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20"
                   />
                 </div>
 
+                {/* 8. Detailed Requirements */}
                 <div className="sm:col-span-2 space-y-1.5 mt-1">
-                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500">
-                    Detailed Requirements *
+                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
+                    <span>Detailed Requirements & Message *</span>
                   </label>
                   <textarea
                     name="message"
                     value={formData.message}
                     onChange={handleChange}
+                    onBlur={handleBlur}
                     rows="3"
-                    placeholder="Specify dimensions, quantities, and operational environment..."
+                    placeholder="Specify dimensions, tolerances, surface finish, delivery location, and specific standards..."
                     required
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-800 outline-none transition-all resize-none placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20"
+                    className={`w-full rounded-xl border ${
+                      errors.message ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
+                    } p-4 text-slate-800 outline-none transition-all resize-none placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
                   />
+                  {errors.message && (
+                    <p className="text-red-500 text-xs font-medium mt-1">{errors.message}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Compose Application Selection */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500">
+                    Preferred Email Compose Method
+                  </label>
+                  <span className="text-[11px] text-slate-400">Direct compose link</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEmailMethod("mailto")}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      emailMethod === "mailto"
+                        ? "border-[#173F52] bg-[#173F52] text-white shadow-sm"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="truncate">Default Mail App</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmailMethod("gmail")}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      emailMethod === "gmail"
+                        ? "border-[#D92B20] bg-[#D92B20] text-white shadow-sm"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <span className="w-3.5 h-3.5 flex items-center justify-center rounded-full bg-white text-[#D92B20] text-[9px] font-black flex-shrink-0">M</span>
+                    <span className="truncate">Gmail (Web)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmailMethod("outlook")}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      emailMethod === "outlook"
+                        ? "border-[#0078D4] bg-[#0078D4] text-white shadow-sm"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <span className="w-3.5 h-3.5 flex items-center justify-center rounded-full bg-white text-[#0078D4] text-[9px] font-black flex-shrink-0">O</span>
+                    <span className="truncate">Outlook (Web)</span>
+                  </button>
                 </div>
               </div>
 
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="group mt-2 flex w-full items-center justify-center gap-3 rounded-xl bg-[#173F52] hover:bg-[#122a6e] py-3.5 text-[14px] font-bold uppercase tracking-wider text-white shadow-lg transition-all hover:shadow-xl hover:shadow-[#173F52]/20 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed"
+                className="group mt-3 flex w-full items-center justify-center gap-3 rounded-xl bg-[#173F52] hover:bg-[#122a6e] py-3.5 text-[14px] font-bold uppercase tracking-wider text-white shadow-lg transition-all hover:shadow-xl hover:shadow-[#173F52]/20 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Preparing Email...
+                    Preparing Email Transmission...
                   </>
                 ) : (
                   <>
-                    Execute Data Transmission
+                    Transmit Quote Request
                     <Send className="h-4 w-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
                   </>
                 )}
