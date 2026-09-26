@@ -1,5 +1,5 @@
 // api/send-quote.js
-// Production-ready, secure serverless email handler for Goga Stainless Get Quote
+// Permanent, direct server-side email handler for Goga Stainless Get Quote
 import nodemailer from "nodemailer";
 
 function escapeHtml(str) {
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
     res.setHeader("Allow", "POST");
     return res.status(405).json({
       success: false,
-      error: "Method Not Allowed. Please send a POST request.",
+      error: "Something went wrong. Please try again.",
     });
   }
 
@@ -48,7 +48,7 @@ export default async function handler(req, res) {
       } catch {
         return res.status(400).json({
           success: false,
-          error: "Invalid JSON in request body.",
+          error: "Something went wrong. Please try again.",
         });
       }
     }
@@ -56,7 +56,15 @@ export default async function handler(req, res) {
     if (!body || typeof body !== "object") {
       return res.status(400).json({
         success: false,
-        error: "Missing request payload.",
+        error: "Something went wrong. Please try again.",
+      });
+    }
+
+    const honeypot = sanitizeInput(body.website || body.honeypot || body.companyWebsite || "");
+    if (honeypot) {
+      return res.status(400).json({
+        success: false,
+        error: "Something went wrong. Please try again.",
       });
     }
 
@@ -70,101 +78,70 @@ export default async function handler(req, res) {
     const message = sanitizeInput(body.message);
 
     // Validation
-    const errors = [];
-    if (!name || name.length < 2) errors.push("Representative name must be at least 2 characters.");
-    if (!company) errors.push("Company name is required.");
-    if (!validateEmail(email)) errors.push("A valid email address is required.");
-    const cleanPhone = phone.replace(/[\s\-\(\)\+]/g, "");
-    if (!cleanPhone || cleanPhone.length < 7) errors.push("Phone number must have at least 7 digits.");
-    if (!product) errors.push("Product / Material specification is required.");
-    if (!quantity) errors.push("Quantity / Volume is required.");
-    if (!message || message.length < 5) errors.push("Message / Requirement must be at least 5 characters.");
-
-    if (errors.length > 0) {
+    if (!name || name.length < 2) {
       return res.status(400).json({
         success: false,
-        error: errors[0],
-        details: errors,
+        error: "Representative name is required (minimum 2 characters).",
+      });
+    }
+    if (!company) {
+      return res.status(400).json({
+        success: false,
+        error: "Company name is required.",
+      });
+    }
+    if (!validateEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        error: "A valid email address is required.",
+      });
+    }
+    const cleanPhone = phone.replace(/[\s\-\(\)\+]/g, "");
+    if (!cleanPhone || cleanPhone.length < 7) {
+      return res.status(400).json({
+        success: false,
+        error: "A valid phone number is required (minimum 7 digits).",
+      });
+    }
+    if (!product) {
+      return res.status(400).json({
+        success: false,
+        error: "Please specify the product or material required.",
+      });
+    }
+    if (!quantity) {
+      return res.status(400).json({
+        success: false,
+        error: "Please specify the quantity or volume needed.",
+      });
+    }
+    if (!message || message.length < 5) {
+      return res.status(400).json({
+        success: false,
+        error: "Please describe your requirements (minimum 5 characters).",
       });
     }
 
-    // Email transport configuration
-    const smtpUser = process.env.SMTP_USER;
+    // SMTP Configuration
+    const smtpUser = process.env.SMTP_USER || "info.gogastainless@gmail.com";
     const smtpPass = process.env.SMTP_PASS;
     const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
     const smtpPort = Number(process.env.SMTP_PORT) || 465;
     const smtpSecure = process.env.SMTP_SECURE === "false" ? false : smtpPort === 465;
-    const smtpFrom = process.env.SMTP_FROM || `"Goga Stainless" <${smtpUser || "gogastainless@gmail.com"}>`;
+    const smtpFrom = process.env.SMTP_FROM || `"Goga Stainless" <${smtpUser}>`;
 
-    const businessEmail = process.env.BUSINESS_EMAIL || "gogastainless@gmail.com";
-    const businessCc = process.env.BUSINESS_CC_EMAIL || "info.gogastainless@gmail.com";
+    const businessEmail = process.env.BUSINESS_EMAIL || "info.gogastainless@gmail.com";
+    const businessCc = process.env.BUSINESS_CC_EMAIL || "gogastainless@gmail.com";
 
-    // Option 2 fallback: If SMTP_PASS is not provided, use direct FormSubmit transmission
-    if (!smtpUser || !smtpPass) {
-      console.log("[SEND-QUOTE] No SMTP_PASS found. Using direct FormSubmit service to " + businessEmail + "...");
-
-      const formSubmitPayload = {
-        name: name,
-        email: email,
-        _replyto: email,
-        _cc: businessCc,
-        _subject: `New Get Quote Request — ${name} — Goga Stainless`,
-        "Representative Name": name,
-        "Company Name": company,
-        "Email Address": email,
-        "Phone Matrix Contact": phone,
-        "Product / Material": product,
-        "Quantity / Volume": quantity,
-        "Component Specification / Grade": specification || "Standard / Commercial",
-        "Detailed Requirements / Message": message,
-        _template: "table",
-        _captcha: "false",
-        _autoresponse: `Dear ${name},\n\nThank you for reaching out to Goga Stainless. Your requirement has been sent to our sales engineering team, and a confirmation copy has been sent to your email address.\n\nSummary of your request:\n• Product: ${product}\n• Quantity: ${quantity}\n• Specification: ${specification || "Standard / Commercial"}\n• Company: ${company}\n\nOur team will review your specifications and get back to you with a formal quotation shortly.\n\nWarm regards,\nGoga Stainless\nPhone: +91 845 282 8260\nEmail: ${businessEmail}\nWebsite: www.gogastainless.com`,
-      };
-
-      try {
-        const fsResponse = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(businessEmail)}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            Origin: "https://www.gogastainless.com",
-            Referer: "https://www.gogastainless.com/",
-          },
-          body: JSON.stringify(formSubmitPayload),
-        });
-
-        const fsData = await fsResponse.json().catch(() => ({}));
-        console.log("[FORMSUBMIT RESPONSE]:", fsData);
-
-        if (fsData.success === "true" || fsData.success === true) {
-          return res.status(200).json({
-            success: true,
-            messageId: "fs-" + Date.now(),
-            message: "Your quote request has been sent successfully.",
-          });
-        }
-
-        if (fsData.message && fsData.message.includes("Activation")) {
-          console.warn("[FORMSUBMIT ACTIVATION]: An activation email was sent to " + businessEmail);
-          return res.status(503).json({
-            success: false,
-            error: "Form activation required: An activation email was sent to gogastainless@gmail.com. Please open gogastainless@gmail.com and click 'Activate Form' once to enable instant delivery.",
-            activationPending: true,
-          });
-        }
-
-        return res.status(500).json({
-          success: false,
-          error: "We couldn't send your quote request right now. Please try again.",
-        });
-      } catch (fsError) {
-        console.error("[FORMSUBMIT ERROR]:", fsError);
-        return res.status(500).json({
-          success: false,
-          error: "We couldn't send your quote request right now. Please try again.",
-        });
-      }
+    // If SMTP credentials are missing, fail cleanly with customer-friendly error
+    if (!smtpPass) {
+      console.error(
+        "[SERVER CONFIG ERROR] SMTP_PASS is not set in environment. Please set SMTP_PASS in .env to allow Gmail to authenticate and send."
+      );
+      return res.status(500).json({
+        success: false,
+        error: "Something went wrong. Please try again.",
+      });
     }
 
     const submissionDate = new Date().toLocaleString("en-US", {
@@ -173,21 +150,21 @@ export default async function handler(req, res) {
       timeZone: "Asia/Kolkata",
     });
 
-    // 1. Business Email Content
-    const businessSubject = "New Get Quote Request — Goga Stainless";
+    // 1. Business Email Content (Sent to gogastainless@gmail.com)
+    const businessSubject = `New Quote Request – Goga Stainless Website`;
 
     const businessPlainText = `
-==================================================
-              NEW GET QUOTE REQUEST
-==================================================
+New Quote Request
 
-Customer Details
---------------------------------------------------
+--------------------------------
+CUSTOMER INFORMATION
+--------------------------------
+
 Name:
 ${name}
 
-Company:
-${company || "N/A"}
+Company Name:
+${company}
 
 Email:
 ${email}
@@ -195,25 +172,26 @@ ${email}
 Phone:
 ${phone}
 
-Requirement Details
---------------------------------------------------
-Product:
+--------------------------------
+REQUIREMENT
+--------------------------------
+
+Product / Material:
 ${product}
 
-Specification:
-${specification || "Standard / Commercial Specification"}
-
-Quantity:
+Quantity / Volume:
 ${quantity}
 
-Message:
+Component Specification / Grade:
+${specification || "Standard / Commercial Specification"}
+
+Requirement / Message:
 ${message}
 
---------------------------------------------------
-Submitted from:
-Goga Stainless Website (www.gogastainless.com)
-Date & Time: ${submissionDate}
-==================================================
+--------------------------------
+
+This enquiry was submitted through the Goga Stainless website.
+Submission Date & Time: ${submissionDate}
 `.trim();
 
     const businessHtml = `
@@ -423,7 +401,7 @@ Goga Stainless
                 </tr>
                 <tr>
                   <td style="padding: 10px 14px; font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid #e2e8f0;">Quantity</td>
-                  <td style="padding: 10px 14px; font-size: 13px; color: #0f172a; font-weight: 700; border-bottom: 1px solid #e2e8f0;">${escapeHtml(quantity)}</td>
+                  <td style="padding: 10px 14px; font-size: 13px; color: #0f172a; font-weight: 700;">${escapeHtml(quantity)}</td>
                 </tr>
                 <tr>
                   <td style="padding: 10px 14px; font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase;">Company</td>
@@ -483,23 +461,11 @@ Goga Stainless
       socketTimeout: 15000,
     });
 
-    // Verify SMTP connection
-    try {
-      await transporter.verify();
-    } catch (verifyError) {
-      console.error("[SMTP VERIFICATION FAILED]:", verifyError.message);
-      return res.status(500).json({
-        success: false,
-        error: "We couldn't send your quote request right now. Please try again.",
-        code: "SMTP_AUTH_FAILED",
-      });
-    }
-
     // 1. Send Business Email
-    // From: Authenticated Goga Stainless sending account (so it appears in Gmail Sent!)
-    // To: Goga Stainless business recipient email
-    // CC: Secondary business email
-    // Reply-To: Customer's entered email
+    // From: Authenticated Goga Stainless account (automatically placed in Gmail Sent folder!)
+    // To: gogastainless@gmail.com
+    // CC: info.gogastainless@gmail.com
+    // Reply-To: Customer's email
     const businessMailOptions = {
       from: smtpFrom,
       to: businessEmail,
@@ -512,47 +478,40 @@ Goga Stainless
 
     const businessResult = await transporter.sendMail(businessMailOptions);
 
-    if (!businessResult || !businessResult.messageId || !Array.isArray(businessResult.accepted) || businessResult.accepted.length === 0) {
-      console.error("[SMTP REJECTED]: Server did not accept business enquiry message.", businessResult);
+    if (!businessResult || !businessResult.messageId) {
+      console.error("[SMTP REJECTED]: Server did not return messageId.", businessResult);
       return res.status(500).json({
         success: false,
-        error: "We couldn't send your quote request right now. Please try again.",
-        code: "SMTP_REJECTED",
+        error: "Something went wrong. Please try again.",
       });
     }
 
-    console.log(`[SMTP ACCEPTED] Business quote enquiry sent successfully. MessageId: ${businessResult.messageId}`);
+    console.log(`[SMTP ACCEPTED] Quote enquiry sent. MessageId: ${businessResult.messageId}`);
 
     // 2. Send Customer Confirmation Copy
-    let customerResult = null;
     try {
-      const customerMailOptions = {
+      await transporter.sendMail({
         from: smtpFrom,
         to: email,
         subject: customerSubject,
         text: customerPlainText,
         html: customerHtml,
-      };
-
-      customerResult = await transporter.sendMail(customerMailOptions);
-      console.log(`[SMTP ACCEPTED] Customer confirmation sent successfully. MessageId: ${customerResult.messageId}`);
+      });
     } catch (custError) {
-      console.warn("[CUSTOMER CONFIRMATION WARNING]: Could not deliver copy to customer:", custError.message);
+      console.warn("[CUSTOMER CONFIRMATION WARNING]:", custError.message);
     }
 
-    // ONLY return success when mail server actually confirmed acceptance with real messageId
     return res.status(200).json({
       success: true,
       messageId: businessResult.messageId,
-      customerMessageId: customerResult ? customerResult.messageId : null,
-      message: "Your quote request has been sent successfully.",
+      message: "Your requirement has been sent successfully.",
     });
 
   } catch (error) {
-    console.error("[QUOTE SUBMISSION EXCEPTION]:", error);
+    console.error("[QUOTE SUBMISSION EXCEPTION]:", error.message);
     return res.status(500).json({
       success: false,
-      error: "We couldn't send your quote request right now. Please try again.",
+      error: "Something went wrong. Please try again.",
     });
   }
 }

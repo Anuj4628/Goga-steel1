@@ -20,7 +20,7 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-const smtpUser = process.env.SMTP_USER || "gogastainless@gmail.com";
+const smtpUser = process.env.SMTP_USER || "info.gogastainless@gmail.com";
 const smtpPass = process.env.SMTP_PASS;
 
 console.log("\n=======================================================");
@@ -35,7 +35,7 @@ if (!smtpPass) {
   console.error("❌ ERROR: SMTP_PASS is empty in .env!");
   console.error("To enable live email delivery and record in Gmail Sent:");
   console.error("1. Go to: https://myaccount.google.com/apppasswords");
-  console.error("2. Sign in as: gogastainless@gmail.com");
+  console.error("2. Sign in as: info.gogastainless@gmail.com");
   console.error("3. Generate a 16-character App password for 'Goga Website'");
   console.error("4. Paste it into .env (SMTP_PASS=xxxx xxxx xxxx xxxx)");
   console.error("5. Run this test again: node test-email.js\n");
@@ -61,8 +61,8 @@ async function run() {
     console.log("\n2. Sending test Get Quote enquiry...");
     const info = await transporter.sendMail({
       from: `"Goga Stainless" <${smtpUser}>`,
-      to: "gogastainless@gmail.com",
-      cc: "info.gogastainless@gmail.com",
+      to: "info.gogastainless@gmail.com",
+      cc: "gogastainless@gmail.com",
       replyTo: "Anuj Mishra <anujm4638@gmail.com>",
       subject: "New Get Quote Request — Goga Stainless (Live Test)",
       text: "NEW GET QUOTE REQUEST\n\nName: Anuj Mishra\nProduct: Stainless Steel Flanges\nQuantity: 100 pcs\nMessage: Live test verification.",

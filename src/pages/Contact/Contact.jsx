@@ -38,6 +38,7 @@ const Contact = () => {
     quantity: "",
     specification: "",
     message: "",
+    website: "",
   });
 
   const [errors, setErrors] = useState({});
@@ -189,18 +190,17 @@ const Contact = () => {
           quantity: "",
           specification: "",
           message: "",
+          website: "",
         });
         setErrors({});
       } else {
         setShowError(true);
-        setErrorMessage(
-          result.error || "We couldn't send your quote request right now. Please try again."
-        );
+        setErrorMessage(result.error || "Something went wrong. Please try again.");
       }
     } catch (error) {
       console.error("Form submission network error:", error);
       setShowError(true);
-      setErrorMessage("We couldn't send your quote request right now. Please try again.");
+      setErrorMessage("Something went wrong. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -224,7 +224,7 @@ const Contact = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -40, scale: 0.96 }}
             transition={{ duration: 0.35, type: "spring", stiffness: 300 }}
-            className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] w-full max-w-xl mx-4 px-4"
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] w-[calc(100%-2rem)] max-w-xl"
           >
             <div className="relative bg-white border border-emerald-300 rounded-2xl shadow-2xl p-5 overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-400 via-teal-500 to-green-500"></div>
@@ -239,7 +239,7 @@ const Contact = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <h4 className="text-base font-bold text-slate-900 uppercase tracking-wide">
-                      YOUR QUOTE REQUEST HAS BEEN SENT SUCCESSFULLY.
+                      Your requirement has been sent successfully.
                     </h4>
                     <button
                       onClick={closeSuccessToast}
@@ -251,7 +251,7 @@ const Contact = () => {
                   </div>
 
                   <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                    Thank you for reaching out to Goga Stainless. Your requirement has been sent to our sales engineering team, and a confirmation copy has been sent to your email address.
+                    Our team will get back to you shortly.
                   </p>
                 </div>
               </div>
@@ -268,7 +268,7 @@ const Contact = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -40, scale: 0.96 }}
             transition={{ duration: 0.35, type: "spring", stiffness: 300 }}
-            className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] w-full max-w-lg mx-4 px-4"
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] w-[calc(100%-2rem)] max-w-lg"
           >
             <div className="relative bg-white border border-red-300 rounded-2xl shadow-2xl p-5 overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-500 to-rose-600"></div>
@@ -296,7 +296,7 @@ const Contact = () => {
                     </button>
                   </div>
                   <p className="text-sm text-red-700 mt-1 leading-relaxed">
-                    {errorMessage || "We couldn't send your quote request right now. Please try again."}
+                    {errorMessage || "Something went wrong. Please try again."}
                   </p>
                   <p className="text-xs text-slate-500 mt-2">
                     Need immediate assistance? Call us directly at{" "}
@@ -838,6 +838,16 @@ const Contact = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4 mt-6" noValidate>
+              <input
+                type="text"
+                name="website"
+                value={formData.website}
+                onChange={handleChange}
+                tabIndex={-1}
+                autoComplete="off"
+                className="hidden"
+                aria-hidden="true"
+              />
               <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4">
                 {/* 1. Name */}
                 <div className="space-y-1.5">
@@ -1015,7 +1025,7 @@ const Contact = () => {
                   </>
                 ) : (
                   <>
-                    Send Quote Request
+                    Submit
                     <Send className="h-4 w-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
                   </>
                 )}
