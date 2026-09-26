@@ -18,7 +18,7 @@ const slides = [
     tagline: "GOGA STAINLESS",
     categories: ["SHEETS & PLATES", "FLANGES", "FASTENERS"],
     grades: [
-      { name: "S STEEL", spec: "04 / 316 / 321" },
+      { name: "SS STEEL", spec: "304 / 316 / 321" },
       { name: "DUPLEX STEEL", spec: "SAT 2205 / 2507" },
       { name: "TITANIUM", spec: "GRADE 2 / 5" },
     ],
@@ -31,7 +31,7 @@ const slides = [
     tagline: "GOGA STAINLESS",
     categories: ["SHEETS & PLATES", "FLANGES", "FASTENERS"],
     grades: [
-      { name: "S STEEL", spec: "04 / 316 / 321" },
+      { name: "SS STEEL", spec: "304 / 316 / 321" },
       { name: "DUPLEX STEEL", spec: "SAT 2205 / 2507" },
       { name: "TITANIUM", spec: "GRADE 2 / 5" },
     ],
@@ -43,7 +43,7 @@ const slides = [
     tagline: "GOGA STAINLESS",
     categories: ["SHEETS & PLATES", "FLANGES", "FASTENERS"],
     grades: [
-      { name: "S STEEL", spec: "04 / 316 / 321" },
+      { name: "SS STEEL", spec: " 304 / 316 / 321" },
       { name: "DUPLEX STEEL", spec: "SAT 2205 / 2507" },
       { name: "TITANIUM", spec: "GRADE 2 / 5" },
     ],
@@ -55,7 +55,7 @@ const slides = [
     tagline: "GOGA STAINLESS",
     categories: ["SHEETS & PLATES", "FLANGES", "FASTENERS"],
     grades: [
-      { name: "S STEEL", spec: "04 / 316 / 321" },
+      { name: "SS STEEL", spec: "304 / 316 / 321" },
       { name: "DUPLEX STEEL", spec: "SAT 2205 / 2507" },
       { name: "TITANIUM", spec: "GRADE 2 / 5" },
     ],
@@ -67,7 +67,7 @@ const slides = [
     tagline: "GOGA STAINLESS",
     categories: ["SHEETS & PLATES", "FLANGES", "FASTENERS"],
     grades: [
-      { name: "S STEEL", spec: "04 / 316 / 321" },
+      { name: "SS STEEL", spec: "304 / 316 / 321" },
       { name: "DUPLEX STEEL", spec: "SAT 2205 / 2507" },
       { name: "TITANIUM", spec: "GRADE 2 / 5" },
     ],
@@ -79,7 +79,7 @@ const slides = [
     tagline: "GOGA STAINLESS",
     categories: ["SHEETS & PLATES", "FLANGES", "FASTENERS"],
     grades: [
-      { name: "S STEEL", spec: "04 / 316 / 321" },
+      { name: "SS STEEL", spec: "304 / 316 / 321" },
       { name: "DUPLEX STEEL", spec: "SAT 2205 / 2507" },
       { name: "TITANIUM", spec: "GRADE 2 / 5" },
     ],
@@ -139,10 +139,9 @@ const Hero1 = () => {
             transition-all
             duration-1000
             ease-in-out
-            ${
-              index === current
-                ? "opacity-100 scale-100 z-10"
-                : "opacity-0 scale-95 z-0"
+            ${index === current
+              ? "opacity-100 scale-100 z-10"
+              : "opacity-0 scale-95 z-0"
             }
           `}
         >
@@ -382,10 +381,9 @@ const Hero1 = () => {
               transition-all
               duration-300
 
-              ${
-                index === current
-                  ? "w-4 sm:w-5 md:w-8 lg:w-10 bg-[#D92B20]"
-                  : "w-1 sm:w-1.5 md:w-2 bg-white/60 hover:bg-white"
+              ${index === current
+                ? "w-4 sm:w-5 md:w-8 lg:w-10 bg-[#D92B20]"
+                : "w-1 sm:w-1.5 md:w-2 bg-white/60 hover:bg-white"
               }
             `}
             aria-label={`Go to slide ${index + 1}`}

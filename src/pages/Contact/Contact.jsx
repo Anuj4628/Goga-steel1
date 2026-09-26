@@ -19,9 +19,6 @@ import {
   Loader2,
   MessageCircle,
   X,
-  Copy,
-  Check,
-  ExternalLink,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaArrowRight } from "react-icons/fa";
@@ -44,13 +41,10 @@ const Contact = () => {
   });
 
   const [errors, setErrors] = useState({});
-  const [emailMethod, setEmailMethod] = useState("mailto"); // "mailto" | "gmail" | "outlook"
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [lastPreparedEmail, setLastPreparedEmail] = useState(null);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (showSuccess) {
@@ -155,103 +149,7 @@ const Contact = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const buildEmailContent = (data) => {
-    const recipient = "gogastainless@gmail.com";
-    const cc = "info.gogastainless@gmail.com";
-    const subject = `Quote Request: ${data.product.trim()} - ${data.name.trim()} (${data.company.trim() || "Client"})`;
-
-    const bodyLines = [
-      "==================================================",
-      "          GOGA STAINLESS - QUOTE INQUIRY          ",
-      "==================================================",
-      "",
-      "CLIENT & CONTACT INFORMATION:",
-      "--------------------------------------------------",
-      `• Representative Name : ${data.name.trim()}`,
-      `• Company Name        : ${data.company.trim() || "N/A"}`,
-      `• Corporate Email     : ${data.email.trim()}`,
-      `• Phone Number        : ${data.phone.trim()}`,
-      "",
-      "PRODUCT & MATERIAL SPECIFICATIONS:",
-      "--------------------------------------------------",
-      `• Product / Material  : ${data.product.trim() || "N/A"}`,
-      `• Required Quantity   : ${data.quantity.trim() || "N/A"}`,
-      `• Grade / Spec        : ${data.specification.trim() || "Standard / Commercial"}`,
-      "",
-      "DETAILED REQUIREMENTS & MESSAGE:",
-      "--------------------------------------------------",
-      data.message.trim(),
-      "",
-      "--------------------------------------------------",
-      "Source: GOGA STAINLESS Website (https://www.gogastainless.com)",
-      `Date: ${new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}`,
-      "==================================================",
-    ];
-
-    const bodyText = bodyLines.join("\r\n");
-
-    // Standard RFC-compliant URL encoding with zero raw unescaped spaces
-    const encodedSubject = encodeURIComponent(subject);
-    const encodedBody = encodeURIComponent(bodyText);
-    const encodedCc = encodeURIComponent(cc).replace(/%40/g, "@");
-    const encodedTo = encodeURIComponent(recipient).replace(/%40/g, "@");
-
-    const mailtoUrl = `mailto:${recipient}?cc=${encodedCc}&subject=${encodedSubject}&body=${encodedBody}`;
-    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodedTo}&cc=${encodedCc}&su=${encodedSubject}&body=${encodedBody}`;
-    const outlookUrl = `https://outlook.live.com/mail/0/deeplink/compose?to=${encodedTo}&cc=${encodedCc}&subject=${encodedSubject}&body=${encodedBody}`;
-
-    return {
-      to: recipient,
-      cc,
-      subject,
-      bodyText,
-      mailtoUrl,
-      gmailUrl,
-      outlookUrl,
-    };
-  };
-
-  const dispatchMail = (emailData, method) => {
-    if (method === "gmail") {
-      const opened = window.open(emailData.gmailUrl, "_blank", "noopener,noreferrer");
-      if (!opened) {
-        window.location.href = emailData.gmailUrl;
-      }
-      return true;
-    }
-
-    if (method === "outlook") {
-      const opened = window.open(emailData.outlookUrl, "_blank", "noopener,noreferrer");
-      if (!opened) {
-        window.location.href = emailData.outlookUrl;
-      }
-      return true;
-    }
-
-    // Default mailto method:
-    // Dispatch using a hidden DOM anchor click without target="_blank"
-    // This triggers the OS default mail client cleanly without opening empty browser tabs
-    try {
-      const link = document.createElement("a");
-      link.href = emailData.mailtoUrl;
-      link.rel = "noopener noreferrer";
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        if (link.parentNode) {
-          link.parentNode.removeChild(link);
-        }
-      }, 500);
-      return true;
-    } catch (err) {
-      console.warn("Anchor click dispatch fallback:", err);
-      window.location.assign(emailData.mailtoUrl);
-      return true;
-    }
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!validateAll()) {
@@ -260,46 +158,52 @@ const Contact = () => {
       return;
     }
 
+    if (isSubmitting) return;
+
     setIsSubmitting(true);
+    setShowError(false);
+    setShowSuccess(false);
 
     try {
-      const emailData = buildEmailContent(formData);
-      setLastPreparedEmail(emailData);
-
-      dispatchMail(emailData, emailMethod);
-
-      setShowSuccess(true);
-      setShowError(false);
-
-      // Reset form on successful submission
-      setFormData({
-        name: "",
-        company: "",
-        email: "",
-        phone: "",
-        product: "",
-        quantity: "",
-        specification: "",
-        message: "",
+      const response = await fetch("/api/send-quote", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
       });
-      setErrors({});
+
+      const result = await response.json().catch(() => ({}));
+
+      if (response.ok && result.success === true && result.messageId) {
+        setShowSuccess(true);
+        setShowError(false);
+
+        // Reset form on successful submission
+        setFormData({
+          name: "",
+          company: "",
+          email: "",
+          phone: "",
+          product: "",
+          quantity: "",
+          specification: "",
+          message: "",
+        });
+        setErrors({});
+      } else {
+        setShowError(true);
+        setErrorMessage(
+          result.error || "We couldn't send your quote request right now. Please try again."
+        );
+      }
     } catch (error) {
-      console.error("Form submission error:", error);
+      console.error("Form submission network error:", error);
       setShowError(true);
-      setErrorMessage("Unable to open your email client. Please contact us directly at gogastainless@gmail.com.");
-      setShowSuccess(false);
+      setErrorMessage("We couldn't send your quote request right now. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleCopyQuote = () => {
-    if (!lastPreparedEmail) return;
-    const textToCopy = `To: ${lastPreparedEmail.to}\nCC: ${lastPreparedEmail.cc}\nSubject: ${lastPreparedEmail.subject}\n\n${lastPreparedEmail.bodyText}`;
-    navigator.clipboard.writeText(textToCopy).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 3000);
-    });
   };
 
   const closeSuccessToast = () => {
@@ -335,7 +239,7 @@ const Contact = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <h4 className="text-base font-bold text-slate-900 uppercase tracking-wide">
-                      Quote Inquiry Prepared!
+                      YOUR QUOTE REQUEST HAS BEEN SENT SUCCESSFULLY.
                     </h4>
                     <button
                       onClick={closeSuccessToast}
@@ -346,64 +250,9 @@ const Contact = () => {
                     </button>
                   </div>
 
-                  <p className="text-sm text-slate-600 mt-1 leading-relaxed">
-                    Your quote details have been generated and directed to{" "}
-                    <span className="font-semibold text-slate-800">gogastainless@gmail.com</span> (CC:{" "}
-                    <span className="font-semibold text-slate-800">info.gogastainless@gmail.com</span>).
+                  <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+                    Thank you for reaching out to Goga Stainless. Your requirement has been sent to our sales engineering team, and a confirmation copy has been sent to your email address.
                   </p>
-
-                  {lastPreparedEmail && (
-                    <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
-                      <p className="text-[11px] text-slate-500 font-medium">
-                        Didn't see your email client launch automatically? Choose an option:
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        <a
-                          href={lastPreparedEmail.gmailUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          Open in Gmail (Web)
-                        </a>
-                        <a
-                          href={lastPreparedEmail.outlookUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          Open in Outlook (Web)
-                        </a>
-                        <button
-                          type="button"
-                          onClick={handleCopyQuote}
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors cursor-pointer"
-                        >
-                          {copied ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              <span className="text-emerald-700">Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copy Quote Details</span>
-                            </>
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => dispatchMail(lastPreparedEmail, "mailto")}
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <Mail className="w-3.5 h-3.5" />
-                          <span>Re-launch Mail App</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -434,7 +283,9 @@ const Contact = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-bold text-red-800 uppercase tracking-wider">
-                      Please Check Details
+                      {errorMessage?.includes("required") || errorMessage?.includes("complete") || errorMessage?.includes("valid")
+                        ? "Please Check Details"
+                        : "Notice"}
                     </h4>
                     <button
                       onClick={closeErrorToast}
@@ -445,7 +296,7 @@ const Contact = () => {
                     </button>
                   </div>
                   <p className="text-sm text-red-700 mt-1 leading-relaxed">
-                    {errorMessage || "Unable to proceed with email preparation."}
+                    {errorMessage || "We couldn't send your quote request right now. Please try again."}
                   </p>
                   <p className="text-xs text-slate-500 mt-2">
                     Need immediate assistance? Call us directly at{" "}
@@ -554,9 +405,9 @@ const Contact = () => {
               {/* Material Grades */}
               <div className="mt-1.5 sm:mt-2 md:mt-3 flex flex-wrap items-center gap-2 sm:gap-3 md:gap-4 lg:gap-6 text-[8px] sm:text-[9px] md:text-[10px] lg:text-[11px] font-bold uppercase tracking-wider">
                 <div className="flex items-center gap-1 sm:gap-2">
-                  <span className="text-white/50">S STEEL</span>
+                  <span className="text-white/50">SS STEEL</span>
                   <span className="text-white/70 sm:text-white/80">
-                    04 / 316 / 321
+                    304 / 316 / 321
                   </span>
                 </div>
                 <span className="text-white/20 hidden sm:inline">|</span>
@@ -970,19 +821,7 @@ const Contact = () => {
               <span className="text-[#D92B20] block mt-1">Inquiry</span>
             </h2>
 
-            <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200 p-3.5 text-xs font-medium text-slate-700 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <span className="text-base">📧</span>
-                <span>
-                  {emailMethod === "mailto" && "Direct default email client launch (Outlook, Apple Mail, Thunderbird)."}
-                  {emailMethod === "gmail" && "Opens Google Gmail web compose in a new tab with pre-filled details."}
-                  {emailMethod === "outlook" && "Opens Microsoft Outlook / 365 web compose with pre-filled details."}
-                </span>
-              </div>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-slate-200/70 text-slate-700 whitespace-nowrap">
-                {emailMethod === "mailto" ? "System Mail" : emailMethod === "gmail" ? "Gmail Web" : "Outlook Web"}
-              </span>
-            </div>
+
 
             <div className="mt-4 rounded-xl border border-[#D92B20]/20 bg-[#D92B20]/5 p-4 md:p-5 relative overflow-hidden flex items-center gap-4">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white shadow-sm border border-[#D92B20]/20">
@@ -1013,9 +852,8 @@ const Contact = () => {
                     onBlur={handleBlur}
                     placeholder="e.g. John Doe"
                     required
-                    className={`h-12 w-full rounded-xl border ${
-                      errors.name ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
-                    } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
+                    className={`h-12 w-full rounded-xl border ${errors.name ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
+                      } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
                   />
                   {errors.name && (
                     <p className="text-red-500 text-xs font-medium mt-1">{errors.name}</p>
@@ -1035,9 +873,8 @@ const Contact = () => {
                     onBlur={handleBlur}
                     placeholder="e.g. Acme Industrial Corp"
                     required
-                    className={`h-12 w-full rounded-xl border ${
-                      errors.company ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
-                    } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
+                    className={`h-12 w-full rounded-xl border ${errors.company ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
+                      } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
                   />
                   {errors.company && (
                     <p className="text-red-500 text-xs font-medium mt-1">{errors.company}</p>
@@ -1057,9 +894,8 @@ const Contact = () => {
                     onBlur={handleBlur}
                     placeholder="company@domain.com"
                     required
-                    className={`h-12 w-full rounded-xl border ${
-                      errors.email ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
-                    } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
+                    className={`h-12 w-full rounded-xl border ${errors.email ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
+                      } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
                   />
                   {errors.email && (
                     <p className="text-red-500 text-xs font-medium mt-1">{errors.email}</p>
@@ -1079,9 +915,8 @@ const Contact = () => {
                     onBlur={handleBlur}
                     placeholder="+91 00000 00000"
                     required
-                    className={`h-12 w-full rounded-xl border ${
-                      errors.phone ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
-                    } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
+                    className={`h-12 w-full rounded-xl border ${errors.phone ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
+                      } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
                   />
                   {errors.phone && (
                     <p className="text-red-500 text-xs font-medium mt-1">{errors.phone}</p>
@@ -1101,9 +936,8 @@ const Contact = () => {
                     onBlur={handleBlur}
                     placeholder="e.g. Stainless Steel Seamless Pipes"
                     required
-                    className={`h-12 w-full rounded-xl border ${
-                      errors.product ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
-                    } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
+                    className={`h-12 w-full rounded-xl border ${errors.product ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
+                      } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
                   />
                   {errors.product && (
                     <p className="text-red-500 text-xs font-medium mt-1">{errors.product}</p>
@@ -1123,9 +957,8 @@ const Contact = () => {
                     onBlur={handleBlur}
                     placeholder="e.g. 500 Meters / 10 Tons"
                     required
-                    className={`h-12 w-full rounded-xl border ${
-                      errors.quantity ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
-                    } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
+                    className={`h-12 w-full rounded-xl border ${errors.quantity ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
+                      } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
                   />
                   {errors.quantity && (
                     <p className="text-red-500 text-xs font-medium mt-1">{errors.quantity}</p>
@@ -1161,61 +994,12 @@ const Contact = () => {
                     rows="3"
                     placeholder="Specify dimensions, tolerances, surface finish, delivery location, and specific standards..."
                     required
-                    className={`w-full rounded-xl border ${
-                      errors.message ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
-                    } p-4 text-slate-800 outline-none transition-all resize-none placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
+                    className={`w-full rounded-xl border ${errors.message ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
+                      } p-4 text-slate-800 outline-none transition-all resize-none placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
                   />
                   {errors.message && (
                     <p className="text-red-500 text-xs font-medium mt-1">{errors.message}</p>
                   )}
-                </div>
-              </div>
-
-              {/* Compose Application Selection */}
-              <div className="space-y-2 pt-2 border-t border-slate-100">
-                <div className="flex items-center justify-between">
-                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500">
-                    Preferred Email Compose Method
-                  </label>
-                  <span className="text-[11px] text-slate-400">Direct compose link</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEmailMethod("mailto")}
-                    className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                      emailMethod === "mailto"
-                        ? "border-[#173F52] bg-[#173F52] text-white shadow-sm"
-                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="truncate">Default Mail App</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEmailMethod("gmail")}
-                    className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                      emailMethod === "gmail"
-                        ? "border-[#D92B20] bg-[#D92B20] text-white shadow-sm"
-                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <span className="w-3.5 h-3.5 flex items-center justify-center rounded-full bg-white text-[#D92B20] text-[9px] font-black flex-shrink-0">M</span>
-                    <span className="truncate">Gmail (Web)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEmailMethod("outlook")}
-                    className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                      emailMethod === "outlook"
-                        ? "border-[#0078D4] bg-[#0078D4] text-white shadow-sm"
-                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <span className="w-3.5 h-3.5 flex items-center justify-center rounded-full bg-white text-[#0078D4] text-[9px] font-black flex-shrink-0">O</span>
-                    <span className="truncate">Outlook (Web)</span>
-                  </button>
                 </div>
               </div>
 
@@ -1227,11 +1011,11 @@ const Contact = () => {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Preparing Email Transmission...
+                    Sending...
                   </>
                 ) : (
                   <>
-                    Transmit Quote Request
+                    Send Quote Request
                     <Send className="h-4 w-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
                   </>
                 )}
