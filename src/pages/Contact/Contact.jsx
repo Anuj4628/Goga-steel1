@@ -150,59 +150,35 @@ const Contact = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
 
     if (!validateAll()) {
-      setShowError(true);
-      setErrorMessage("Please complete all required fields highlighted below.");
       return;
     }
 
-    if (isSubmitting) return;
+    const recipient = "info.gogastainless@gmail.com";
+    const cc = "gogastainless@gmail.com";
+    const subject = `Get Quote Enquiry - ${formData.product.trim() || "Stainless Steel Requirement"}`;
 
-    setIsSubmitting(true);
-    setShowError(false);
-    setShowSuccess(false);
+    const bodyLines = [
+      `Name: ${formData.name.trim()}`,
+      `Company: ${formData.company.trim()}`,
+      `Email: ${formData.email.trim()}`,
+      `Phone: ${formData.phone.trim()}`,
+      `Product: ${formData.product.trim()}`,
+      `Quantity: ${formData.quantity.trim()}`,
+      ...(formData.specification.trim() ? [`Specification: ${formData.specification.trim()}`] : []),
+      `Message: ${formData.message.trim() || "Please provide quotation and delivery schedule."}`,
+    ];
 
-    try {
-      const response = await fetch("/api/send-quote", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+    const body = bodyLines.join("\r\n");
+    const mailtoUrl = `mailto:${recipient}?cc=${encodeURIComponent(cc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipient)}&cc=${encodeURIComponent(cc)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
-      const result = await response.json().catch(() => ({}));
-
-      if (response.ok && result.success === true && result.messageId) {
-        setShowSuccess(true);
-        setShowError(false);
-
-        // Reset form on successful submission
-        setFormData({
-          name: "",
-          company: "",
-          email: "",
-          phone: "",
-          product: "",
-          quantity: "",
-          specification: "",
-          message: "",
-          website: "",
-        });
-        setErrors({});
-      } else {
-        setShowError(true);
-        setErrorMessage(result.error || "Something went wrong. Please try again.");
-      }
-    } catch (error) {
-      console.error("Form submission network error:", error);
-      setShowError(true);
-      setErrorMessage("Something went wrong. Please try again.");
-    } finally {
-      setIsSubmitting(false);
+    const newTab = window.open(gmailUrl, "_blank", "noopener,noreferrer");
+    if (!newTab || newTab.closed || typeof newTab.closed === "undefined") {
+      window.location.href = mailtoUrl;
     }
   };
 
@@ -1015,20 +991,10 @@ const Contact = () => {
 
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="group mt-3 flex w-full items-center justify-center gap-3 rounded-xl bg-[#173F52] hover:bg-[#122a6e] py-3.5 text-[14px] font-bold uppercase tracking-wider text-white shadow-lg transition-all hover:shadow-xl hover:shadow-[#173F52]/20 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+                className="group mt-3 flex w-full items-center justify-center gap-3 rounded-xl bg-[#173F52] hover:bg-[#122a6e] py-3.5 text-[14px] font-bold uppercase tracking-wider text-white shadow-lg transition-all hover:shadow-xl hover:shadow-[#173F52]/20 active:scale-[0.99] cursor-pointer"
               >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    Submit
-                    <Send className="h-4 w-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-                  </>
-                )}
+                Send
+                <Send className="h-4 w-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
               </button>
             </form>
           </motion.div>
