@@ -150,35 +150,63 @@ const Contact = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!validateAll()) {
+      setShowError(true);
+      setErrorMessage("Please complete all required fields highlighted below.");
       return;
     }
 
-    const recipient = "info.gogastainless@gmail.com";
-    const cc = "gogastainless@gmail.com";
-    const subject = `Get Quote Enquiry - ${formData.product.trim() || "Stainless Steel Requirement"}`;
+    if (isSubmitting) return;
 
-    const bodyLines = [
-      `Name: ${formData.name.trim()}`,
-      `Company: ${formData.company.trim()}`,
-      `Email: ${formData.email.trim()}`,
-      `Phone: ${formData.phone.trim()}`,
-      `Product: ${formData.product.trim()}`,
-      `Quantity: ${formData.quantity.trim()}`,
-      ...(formData.specification.trim() ? [`Specification: ${formData.specification.trim()}`] : []),
-      `Message: ${formData.message.trim() || "Please provide quotation and delivery schedule."}`,
-    ];
+    setIsSubmitting(true);
+    setShowError(false);
+    setShowSuccess(false);
 
-    const body = bodyLines.join("\r\n");
-    const mailtoUrl = `mailto:${recipient}?cc=${encodeURIComponent(cc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipient)}&cc=${encodeURIComponent(cc)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    try {
+      const response = await fetch("/api/send-quote", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
 
-    const newTab = window.open(gmailUrl, "_blank", "noopener,noreferrer");
-    if (!newTab || newTab.closed || typeof newTab.closed === "undefined") {
-      window.location.href = mailtoUrl;
+      const result = await response.json().catch(() => ({}));
+
+      if (response.ok && result.success === true) {
+        setShowSuccess(true);
+        setShowError(false);
+
+        // Reset form ONLY on successful delivery
+        setFormData({
+          name: "",
+          company: "",
+          email: "",
+          phone: "",
+          product: "",
+          quantity: "",
+          specification: "",
+          message: "",
+          website: "",
+        });
+        setErrors({});
+      } else {
+        // Keep entered form data intact so customer can retry
+        setShowError(true);
+        setErrorMessage(
+          result.error || "Unable to send your inquiry at this moment. Please try again or contact us directly."
+        );
+      }
+    } catch (error) {
+      console.error("Inquiry submission network error:", error);
+      // Keep entered form data intact so customer can retry
+      setShowError(true);
+      setErrorMessage("Unable to send your inquiry at this moment. Please check your connection and try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -215,7 +243,7 @@ const Contact = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <h4 className="text-base font-bold text-slate-900 uppercase tracking-wide">
-                      Your requirement has been sent successfully.
+                      Your inquiry has been sent successfully.
                     </h4>
                     <button
                       onClick={closeSuccessToast}
@@ -227,7 +255,7 @@ const Contact = () => {
                   </div>
 
                   <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                    Our team will get back to you shortly.
+                    Thank you for contacting Goga Stainless. Our team will get back to you shortly.
                   </p>
                 </div>
               </div>
@@ -991,10 +1019,20 @@ const Contact = () => {
 
               <button
                 type="submit"
-                className="group mt-3 flex w-full items-center justify-center gap-3 rounded-xl bg-[#173F52] hover:bg-[#122a6e] py-3.5 text-[14px] font-bold uppercase tracking-wider text-white shadow-lg transition-all hover:shadow-xl hover:shadow-[#173F52]/20 active:scale-[0.99] cursor-pointer"
+                disabled={isSubmitting}
+                className="group mt-3 flex w-full items-center justify-center gap-3 rounded-xl bg-[#173F52] hover:bg-[#122a6e] py-3.5 text-[14px] font-bold uppercase tracking-wider text-white shadow-lg transition-all hover:shadow-xl hover:shadow-[#173F52]/20 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
               >
-                Send
-                <Send className="h-4 w-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    Send Message
+                    <Send className="h-4 w-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                  </>
+                )}
               </button>
             </form>
           </motion.div>

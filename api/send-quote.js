@@ -1,6 +1,30 @@
 // api/send-quote.js
 // Permanent, direct server-side email handler for Goga Stainless Get Quote
 import nodemailer from "nodemailer";
+import fs from "fs";
+import path from "path";
+
+function loadEnvFallback() {
+  if (process.env.SMTP_PASS) return;
+  try {
+    const envPath = path.resolve(process.cwd(), ".env");
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, "utf-8");
+      content.split("\n").forEach((line) => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith("#")) {
+          const [key, ...rest] = trimmed.split("=");
+          const val = rest.join("=").trim().replace(/^["']|["']$/g, "");
+          if (key && val && !process.env[key.trim()]) {
+            process.env[key.trim()] = val;
+          }
+        }
+      });
+    }
+  } catch {
+    // Ignore if not present or accessible
+  }
+}
 
 function escapeHtml(str) {
   if (typeof str !== "string") return "";
@@ -23,6 +47,7 @@ function validateEmail(email) {
 }
 
 export default async function handler(req, res) {
+  loadEnvFallback();
   // CORS Headers
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -140,7 +165,7 @@ export default async function handler(req, res) {
       );
       return res.status(500).json({
         success: false,
-        error: "Something went wrong. Please try again.",
+        error: "Unable to send your inquiry at this moment. Please try again or contact us directly.",
       });
     }
 
@@ -150,8 +175,8 @@ export default async function handler(req, res) {
       timeZone: "Asia/Kolkata",
     });
 
-    // 1. Business Email Content (Sent to gogastainless@gmail.com)
-    const businessSubject = `New Quote Request – Goga Stainless Website`;
+    // 1. Business Email Content (Sent to business recipient)
+    const businessSubject = `New Get Quote Inquiry – Goga Stainless`;
 
     const businessPlainText = `
 New Quote Request
@@ -462,18 +487,19 @@ Goga Stainless
     });
 
     // 1. Send Business Email
-    // From: Authenticated Goga Stainless account (automatically placed in Gmail Sent folder!)
-    // To: gogastainless@gmail.com
-    // CC: info.gogastainless@gmail.com
+    // From: Authenticated account (automatically placed in Gmail Sent folder!)
+    // To: businessEmail
+    // CC: businessCc
     // Reply-To: Customer's email
     const businessMailOptions = {
       from: smtpFrom,
       to: businessEmail,
-      cc: businessCc,
+      ...(businessCc && businessCc !== businessEmail ? { cc: businessCc } : {}),
       replyTo: `"${name}" <${email}>`,
       subject: businessSubject,
       text: businessPlainText,
       html: businessHtml,
+      encoding: "utf-8",
     };
 
     const businessResult = await transporter.sendMail(businessMailOptions);
@@ -482,7 +508,7 @@ Goga Stainless
       console.error("[SMTP REJECTED]: Server did not return messageId.", businessResult);
       return res.status(500).json({
         success: false,
-        error: "Something went wrong. Please try again.",
+        error: "Unable to send your inquiry at this moment. Please try again or contact us directly.",
       });
     }
 
@@ -496,6 +522,7 @@ Goga Stainless
         subject: customerSubject,
         text: customerPlainText,
         html: customerHtml,
+        encoding: "utf-8",
       });
     } catch (custError) {
       console.warn("[CUSTOMER CONFIRMATION WARNING]:", custError.message);
@@ -504,14 +531,14 @@ Goga Stainless
     return res.status(200).json({
       success: true,
       messageId: businessResult.messageId,
-      message: "Your requirement has been sent successfully.",
+      message: "Your inquiry has been sent successfully.",
     });
 
   } catch (error) {
     console.error("[QUOTE SUBMISSION EXCEPTION]:", error.message);
     return res.status(500).json({
       success: false,
-      error: "Something went wrong. Please try again.",
+      error: "Unable to send your inquiry at this moment. Please try again or contact us directly.",
     });
   }
 }
