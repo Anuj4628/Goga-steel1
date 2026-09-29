@@ -56,6 +56,101 @@ function validateEmail(email) {
   return typeof email === "string" && re.test(email.trim());
 }
 
+function getSmtpConfig() {
+  const possiblePassKeys = [
+    "SMTP_PASS",
+    "SMTP_PASSWORD",
+    "GMAIL_APP_PASSWORD",
+    "GMAIL_PASSWORD",
+    "EMAIL_PASSWORD",
+    "EMAIL_PASS",
+    "MAIL_PASSWORD",
+    "MAIL_PASS",
+    "APP_PASSWORD",
+    "VITE_SMTP_PASS",
+    "VITE_GMAIL_APP_PASSWORD",
+    "GMAIL_PASS",
+  ];
+
+  let rawPass = "";
+  let matchedKey = null;
+
+  for (const k of possiblePassKeys) {
+    if (process.env[k] && typeof process.env[k] === "string" && process.env[k].trim()) {
+      rawPass = process.env[k];
+      matchedKey = k;
+      break;
+    }
+  }
+
+  // If still not matched, dynamically scan any environment variable containing pass or secret
+  if (!rawPass) {
+    for (const [k, v] of Object.entries(process.env)) {
+      if (/pass|secret|app_pass/i.test(k) && typeof v === "string" && v.trim().length >= 10) {
+        rawPass = v;
+        matchedKey = k;
+        break;
+      }
+    }
+  }
+
+  // Strip surrounding quotes and whitespace
+  const smtpPass = rawPass
+    ? rawPass.trim().replace(/^["']|["']$/g, "").replace(/\s+/g, "")
+    : "";
+
+  const possibleUserKeys = [
+    "SMTP_USER",
+    "GMAIL_USER",
+    "EMAIL_USER",
+    "MAIL_USER",
+    "VITE_SMTP_USER",
+    "USER_EMAIL",
+  ];
+  let smtpUser = "";
+  for (const k of possibleUserKeys) {
+    if (process.env[k] && typeof process.env[k] === "string" && process.env[k].trim()) {
+      smtpUser = process.env[k].trim();
+      break;
+    }
+  }
+  if (!smtpUser) {
+    smtpUser = "info.gogastainless@gmail.com";
+  }
+
+  const smtpHost = (process.env.SMTP_HOST || "smtp.gmail.com").trim();
+  const smtpPort = Number(process.env.SMTP_PORT) || 465;
+  const smtpSecure =
+    process.env.SMTP_SECURE !== undefined
+      ? String(process.env.SMTP_SECURE).toLowerCase() === "true"
+      : smtpPort === 465;
+
+  const smtpFrom = process.env.SMTP_FROM || `"Goga Stainless" <${smtpUser}>`;
+
+  const businessEmail = (
+    process.env.BUSINESS_EMAIL ||
+    process.env.BUSINESS_RECEIVER_EMAIL ||
+    "info.gogastainless@gmail.com"
+  ).trim();
+
+  const businessCc = (
+    process.env.BUSINESS_CC_EMAIL ||
+    "gogastainless@gmail.com"
+  ).trim();
+
+  return {
+    smtpUser,
+    smtpPass,
+    smtpHost,
+    smtpPort,
+    smtpSecure,
+    smtpFrom,
+    businessEmail,
+    businessCc,
+    matchedKey,
+  };
+}
+
 export default async function handler(req, res) {
   loadEnvFallback();
 
@@ -70,20 +165,21 @@ export default async function handler(req, res) {
 
   // Safe readiness check (GET) for deployment verification (never leaks sensitive data)
   if (req.method === "GET") {
-    const rawPass =
-      process.env.SMTP_PASS ||
-      process.env.GMAIL_APP_PASSWORD ||
-      process.env.EMAIL_PASSWORD ||
-      process.env.SMTP_PASSWORD ||
-      "";
-    const isConfigured = Boolean(rawPass && rawPass.trim().length > 0);
+    const config = getSmtpConfig();
+    const isConfigured = Boolean(config.smtpPass);
+    const emailKeysFound = Object.keys(process.env).filter((k) =>
+      /smtp|mail|pass|secret/i.test(k)
+    );
+
     return res.status(200).json({
       status: "ok",
       endpoint: "/api/send-quote",
       smtpConfigured: isConfigured,
+      matchedPasswordKey: config.matchedKey,
+      detectedKeysInVercel: emailKeysFound,
       message: isConfigured
         ? "Email API is configured and ready to accept inquiries."
-        : "SMTP_PASS is not configured in Vercel environment variables.",
+        : "SMTP_PASS is not configured in Vercel environment variables. Please add SMTP_PASS in Vercel Settings > Environment Variables, and Redeploy.",
     });
   }
 
@@ -177,44 +273,17 @@ export default async function handler(req, res) {
       });
     }
 
-    // SMTP Configuration with fallback names and whitespace trimming
-    const smtpUser = (
-      process.env.SMTP_USER ||
-      process.env.GMAIL_USER ||
-      process.env.EMAIL_USER ||
-      "info.gogastainless@gmail.com"
-    ).trim();
-
-    const rawPass =
-      process.env.SMTP_PASS ||
-      process.env.GMAIL_APP_PASSWORD ||
-      process.env.EMAIL_PASSWORD ||
-      process.env.SMTP_PASSWORD ||
-      "";
-
-    // Gmail App Passwords often have spaces when copied from Google (e.g. "abcd efgh ijkl mnop")
-    const smtpPass = rawPass ? rawPass.trim().replace(/\s+/g, "") : "";
-
-    const smtpHost = (process.env.SMTP_HOST || "smtp.gmail.com").trim();
-    const smtpPort = Number(process.env.SMTP_PORT) || 465;
-    const smtpSecure =
-      process.env.SMTP_SECURE !== undefined
-        ? String(process.env.SMTP_SECURE).toLowerCase() === "true"
-        : smtpPort === 465;
-
-    const smtpFrom =
-      process.env.SMTP_FROM || `"Goga Stainless" <${smtpUser}>`;
-
-    const businessEmail = (
-      process.env.BUSINESS_EMAIL ||
-      process.env.BUSINESS_RECEIVER_EMAIL ||
-      "info.gogastainless@gmail.com"
-    ).trim();
-
-    const businessCc = (
-      process.env.BUSINESS_CC_EMAIL ||
-      "gogastainless@gmail.com"
-    ).trim();
+    // SMTP Configuration
+    const {
+      smtpUser,
+      smtpPass,
+      smtpHost,
+      smtpPort,
+      smtpSecure,
+      smtpFrom,
+      businessEmail,
+      businessCc,
+    } = getSmtpConfig();
 
     // If SMTP credentials are missing, fail cleanly with customer-friendly error
     if (!smtpPass) {
@@ -224,6 +293,7 @@ export default async function handler(req, res) {
       return res.status(500).json({
         success: false,
         error: "Unable to send your inquiry at this moment. Please try again or contact us directly.",
+        debugCode: "CONFIG_MISSING_SMTP_PASS",
       });
     }
 
