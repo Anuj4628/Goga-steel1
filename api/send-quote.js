@@ -3,9 +3,19 @@
 import nodemailer from "nodemailer";
 import fs from "fs";
 import path from "path";
+import dns from "dns";
+
+// Optimize DNS resolution for serverless environments (e.g. AWS Lambda / Vercel)
+if (dns && dns.setDefaultResultOrder) {
+  try {
+    dns.setDefaultResultOrder("ipv4first");
+  } catch {
+    // Ignore if not supported
+  }
+}
 
 function loadEnvFallback() {
-  if (process.env.SMTP_PASS) return;
+  if (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD) return;
   try {
     const envPath = path.resolve(process.cwd(), ".env");
     if (fs.existsSync(envPath)) {
@@ -48,20 +58,40 @@ function validateEmail(email) {
 
 export default async function handler(req, res) {
   loadEnvFallback();
+
   // CORS Headers
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
 
+  // Safe readiness check (GET) for deployment verification (never leaks sensitive data)
+  if (req.method === "GET") {
+    const rawPass =
+      process.env.SMTP_PASS ||
+      process.env.GMAIL_APP_PASSWORD ||
+      process.env.EMAIL_PASSWORD ||
+      process.env.SMTP_PASSWORD ||
+      "";
+    const isConfigured = Boolean(rawPass && rawPass.trim().length > 0);
+    return res.status(200).json({
+      status: "ok",
+      endpoint: "/api/send-quote",
+      smtpConfigured: isConfigured,
+      message: isConfigured
+        ? "Email API is configured and ready to accept inquiries."
+        : "SMTP_PASS is not configured in Vercel environment variables.",
+    });
+  }
+
   if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
+    res.setHeader("Allow", "GET, POST, OPTIONS");
     return res.status(405).json({
       success: false,
-      error: "Something went wrong. Please try again.",
+      error: "Method Not Allowed. Please send a POST request with inquiry data.",
     });
   }
 
@@ -147,21 +177,49 @@ export default async function handler(req, res) {
       });
     }
 
-    // SMTP Configuration
-    const smtpUser = process.env.SMTP_USER || "info.gogastainless@gmail.com";
-    const smtpPass = process.env.SMTP_PASS;
-    const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
-    const smtpPort = Number(process.env.SMTP_PORT) || 465;
-    const smtpSecure = process.env.SMTP_SECURE === "false" ? false : smtpPort === 465;
-    const smtpFrom = process.env.SMTP_FROM || `"Goga Stainless" <${smtpUser}>`;
+    // SMTP Configuration with fallback names and whitespace trimming
+    const smtpUser = (
+      process.env.SMTP_USER ||
+      process.env.GMAIL_USER ||
+      process.env.EMAIL_USER ||
+      "info.gogastainless@gmail.com"
+    ).trim();
 
-    const businessEmail = process.env.BUSINESS_EMAIL || "info.gogastainless@gmail.com";
-    const businessCc = process.env.BUSINESS_CC_EMAIL || "gogastainless@gmail.com";
+    const rawPass =
+      process.env.SMTP_PASS ||
+      process.env.GMAIL_APP_PASSWORD ||
+      process.env.EMAIL_PASSWORD ||
+      process.env.SMTP_PASSWORD ||
+      "";
+
+    // Gmail App Passwords often have spaces when copied from Google (e.g. "abcd efgh ijkl mnop")
+    const smtpPass = rawPass ? rawPass.trim().replace(/\s+/g, "") : "";
+
+    const smtpHost = (process.env.SMTP_HOST || "smtp.gmail.com").trim();
+    const smtpPort = Number(process.env.SMTP_PORT) || 465;
+    const smtpSecure =
+      process.env.SMTP_SECURE !== undefined
+        ? String(process.env.SMTP_SECURE).toLowerCase() === "true"
+        : smtpPort === 465;
+
+    const smtpFrom =
+      process.env.SMTP_FROM || `"Goga Stainless" <${smtpUser}>`;
+
+    const businessEmail = (
+      process.env.BUSINESS_EMAIL ||
+      process.env.BUSINESS_RECEIVER_EMAIL ||
+      "info.gogastainless@gmail.com"
+    ).trim();
+
+    const businessCc = (
+      process.env.BUSINESS_CC_EMAIL ||
+      "gogastainless@gmail.com"
+    ).trim();
 
     // If SMTP credentials are missing, fail cleanly with customer-friendly error
     if (!smtpPass) {
       console.error(
-        "[SERVER CONFIG ERROR] SMTP_PASS is not set in environment. Please set SMTP_PASS in .env to allow Gmail to authenticate and send."
+        "[SERVER CONFIG ERROR] Neither SMTP_PASS nor GMAIL_APP_PASSWORD is set in Vercel Environment Variables. Please configure SMTP_PASS in Vercel Project Settings > Environment Variables and redeploy."
       );
       return res.status(500).json({
         success: false,
@@ -481,9 +539,9 @@ Goga Stainless
         user: smtpUser,
         pass: smtpPass,
       },
-      connectionTimeout: 12000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
+      connectionTimeout: 15000,
+      greetingTimeout: 12000,
+      socketTimeout: 20000,
     });
 
     // 1. Send Business Email
@@ -535,7 +593,7 @@ Goga Stainless
     });
 
   } catch (error) {
-    console.error("[QUOTE SUBMISSION EXCEPTION]:", error.message);
+    console.error("[QUOTE SUBMISSION EXCEPTION]:", error && error.stack ? error.stack : error);
     return res.status(500).json({
       success: false,
       error: "Unable to send your inquiry at this moment. Please try again or contact us directly.",
