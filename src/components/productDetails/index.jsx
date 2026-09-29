@@ -270,18 +270,18 @@ export const productComponentMap = {
   "nickel-alloy-200-201-plates": NickelAlloyPlates,
   "nickel-alloy-200-201-wires": NickelAlloyWires,
   "nickel-alloy-200-201-coils": NickelAlloyCoils,
-  "nickel-alloy-200-201-pipes": NickelAlloyPipes,
+  "nickel-alloy-200-201-pipes": NickelAlloy200201Pipes,
 
   // =============================
   // ⚪ DUPLEX & SUPER DUPLEX (PRODUCTS)
   // =============================
-  "duplex-super-duplex-tubes": DuplexSteelTubes,
+  "duplex-super-duplex-tubes": DuplexSuperDuplexTubes,
   "duplex-super-duplex-round-bars": DuplexSteelRoundBars,
   "duplex-super-duplex-sheets": DuplexSteelSheets,
   "duplex-super-duplex-plates": DuplexSteelPlates,
   "duplex-super-duplex-wires": DuplexSteelWires,
   "duplex-super-duplex-coils": DuplexSteelCoils,
-  "duplex-super-duplex-pipes": DuplexSteelPipes,
+  "duplex-super-duplex-pipes": DuplexSuperDuplexPipes,
 
   // =============================
   // 🟠 HASTELLOY (PRODUCTS)
@@ -391,14 +391,11 @@ export const productComponentMap = {
   // =============================
   "copper-nickel-90-10-pipes": CopperNickel9010Pipes,
   "copper-nickel-70-30-pipes": CopperNickel7030Pipes,
-  "copper-nickel-pipes": CopperNickelPipes,
 
   // =============================
   // 🟡 DUPLEX STEEL (MATERIALS)
   // =============================
   "duplex-s31803-s32205-pipes": DuplexSteelS31803S32205,
-  "duplex-super-duplex-pipes": DuplexSuperDuplexPipes,
-  "duplex-super-duplex-tubes": DuplexSuperDuplexTubes,
 
   // =============================
   // 🟠 HASTELLOY (MATERIALS)
@@ -408,7 +405,6 @@ export const productComponentMap = {
   "hastelloy-c2000-c59-c4-hn-pipes": HastelloyC2000C59C4HN,
   "hastelloy-c22-pipes": HastelloyC22Pipes,
   "hastelloy-c276-pipes": HastelloyC276Pipes,
-  "hastelloy-pipes": HastelloyPipes,
 
   // =============================
   // 🟣 INCOLOY (MATERIALS)
@@ -416,8 +412,6 @@ export const productComponentMap = {
   "incoloy-825-pipes": Incoloy825Pipes,
   "incoloy-800h-800ht-pipes": Incoloy800H800HTPipes,
   "incoloy-800-ds330-pipes": Incoloy800DS330Pipes,
-  "incoloy-pipes": IncoloyPipes,
-  "incoloy-wires": IncloneyWires,
 
   // =============================
   // 🔴 INCONEL (MATERIALS)
@@ -428,13 +422,11 @@ export const productComponentMap = {
   "inconel-625-pipes": Inconel625Pipes,
   "inconel-601-pipes": Inconel601Pipes,
   "inconel-600-pipes": Inconel600Pipes,
-  "inconel-pipes": InconelPipes,
 
   // =============================
   // 🟤 MONEL (MATERIALS)
   // =============================
   "monel-400-pipes": MonelPipes,
-  "monel-pipes": MonelPipes,
   "monel-400-coils": MonelCoils,
   "monel-400-plates": MonelPlates,
   "monel-400-sheets": MonelSheets,
@@ -443,14 +435,12 @@ export const productComponentMap = {
   // =============================
   // ⚪ NICKEL ALLOY 200/201 (MATERIALS)
   // =============================
-  "nickel-alloy-200-201-pipes": NickelAlloy200201Pipes,
   "nickel-alloy-200-coils": NickelAlloy200Coils,
   "nickel-alloy-200-plates": NickelAlloy200Plates,
   "nickel-alloy-200-round-bars": NickelAlloy200RoundBars,
   "nickel-alloy-200-sheets": NickelAlloy200Sheets,
   "nickel-alloy-200-tubes": NickelAlloy200Tubes,
   "nickel-alloy-200-wires": NickelAlloy200Wires,
-  "nickel-alloy-pipes": NickelAlloyPipes,
 
   // =============================
   // ⚪ OTHER ALLOYS (MATERIALS)
@@ -480,8 +470,6 @@ export const productComponentMap = {
   "alloy-28-sheets": Alloy28Sheets,
   "alloy-28-tubes": Alloy28Tubes,
   "alloy-28-wires": Alloy28Wires,
-  "titanium-pipes": TitaniumPipes,
-  "titanium-coils": TitaniumCoils,
 };
 
 // ============================================================================

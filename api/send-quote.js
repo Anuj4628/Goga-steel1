@@ -601,18 +601,31 @@ Goga Stainless
 `.trim();
 
     // Create Authenticated Transporter
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpSecure,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-      connectionTimeout: 15000,
-      greetingTimeout: 12000,
-      socketTimeout: 20000,
-    });
+    const transporter = nodemailer.createTransport(
+      smtpHost === "smtp.gmail.com"
+        ? {
+            service: "gmail",
+            auth: {
+              user: smtpUser,
+              pass: smtpPass,
+            },
+            connectionTimeout: 15000,
+            greetingTimeout: 12000,
+            socketTimeout: 20000,
+          }
+        : {
+            host: smtpHost,
+            port: smtpPort,
+            secure: smtpSecure,
+            auth: {
+              user: smtpUser,
+              pass: smtpPass,
+            },
+            connectionTimeout: 15000,
+            greetingTimeout: 12000,
+            socketTimeout: 20000,
+          }
+    );
 
     // 1. Send Business Email
     // From: Authenticated account (automatically placed in Gmail Sent folder!)
@@ -637,6 +650,7 @@ Goga Stainless
       return res.status(500).json({
         success: false,
         error: "Unable to send your inquiry at this moment. Please try again or contact us directly.",
+        debugError: "No messageId returned from SMTP server.",
       });
     }
 
@@ -667,6 +681,7 @@ Goga Stainless
     return res.status(500).json({
       success: false,
       error: "Unable to send your inquiry at this moment. Please try again or contact us directly.",
+      debugError: error && error.message ? error.message : String(error),
     });
   }
 }
