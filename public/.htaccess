@@ -1,8 +1,21 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
+
+  # 1. API Route: Direct /api/send-quote to PHP script without touching SPA router
+  RewriteRule ^api/send-quote/?$ api/send-quote.php [L,QSA]
+
+  # 2. Prevent rewriting if actual file or directory exists
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
+
+  # 3. SPA Route Fallback
   RewriteRule . /index.html [L]
 </IfModule>
+
+# Security: Block direct access to hidden files and environment files
+<FilesMatch "^\.env">
+  Order allow,deny
+  Deny from all
+</FilesMatch>

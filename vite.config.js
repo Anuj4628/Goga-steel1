@@ -11,7 +11,7 @@ function apiDevServerPlugin(env) {
 
       server.middlewares.use((req, res, next) => {
         const url = req.url ? req.url.split("?")[0] : "";
-        if (url === "/api/send-quote") {
+        if (url === "/api/send-quote" || url === "/api/send-quote.php") {
           let bodyData = "";
           req.on("data", (chunk) => {
             bodyData += chunk;

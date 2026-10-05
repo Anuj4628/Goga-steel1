@@ -24,8 +24,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FaArrowRight } from "react-icons/fa";
 
 import logo from "../../assets/images/logo/goga-logo-wordmark.png";
-import logoIcon from "../../assets/images/logo/goga-logo-icon.png";
-import logoWordmark from "../../assets/images/logo/goga-logo-wordmark.png";
 import testimonials from "../../data/testimonials";
 
 const Contact = () => {
@@ -95,7 +93,7 @@ const Contact = () => {
         break;
       }
       case "phone": {
-        const phoneClean = value.replace(/[\s\-\(\)\+]/g, "");
+        const phoneClean = value.replace(/[\s\-()+]/g, "");
         if (!value.trim() || phoneClean.length < 7) {
           return "Please enter a valid phone number (minimum 7 digits).";
         }
@@ -166,17 +164,46 @@ const Contact = () => {
     setShowSuccess(false);
 
     try {
-      const response = await fetch("/api/send-quote", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+      const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+      const primaryUrl = baseUrl ? `${baseUrl}/api/send-quote` : "/api/send-quote";
+      const phpFallbackUrl = baseUrl ? `${baseUrl}/api/send-quote.php` : "/api/send-quote.php";
 
-      const result = await response.json().catch(() => ({}));
+      const sendToEndpoint = async (url) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 35000);
+        try {
+          const res = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify(formData),
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
 
-      if (response.ok && result.success === true) {
+          const contentType = res.headers.get("content-type") || "";
+          if (!contentType.includes("application/json")) {
+            return { isHtml: true, status: res.status, res };
+          }
+          const data = await res.json().catch(() => ({}));
+          return { isHtml: false, status: res.status, data, ok: res.ok };
+        } catch (fetchErr) {
+          clearTimeout(timeoutId);
+          throw fetchErr;
+        }
+      };
+
+      let attempt = await sendToEndpoint(primaryUrl);
+
+      // If the primary endpoint returned HTML (SPA fallback rewrite) or 404, gracefully try .php
+      if ((attempt.isHtml || attempt.status === 404) && primaryUrl !== phpFallbackUrl) {
+        console.warn(`[GOGA API] Endpoint ${primaryUrl} returned non-JSON, attempting ${phpFallbackUrl}`);
+        attempt = await sendToEndpoint(phpFallbackUrl);
+      }
+
+      if (attempt.data && attempt.data.success === true) {
         setShowSuccess(true);
         setShowError(false);
 
@@ -196,15 +223,20 @@ const Contact = () => {
       } else {
         // Keep entered form data intact so customer can retry
         setShowError(true);
+        const serverError = attempt.data && attempt.data.error;
         setErrorMessage(
-          result.error || "Unable to send your inquiry at this moment. Please try again or contact us directly."
+          serverError || "Unable to send your inquiry at this moment. Please try again or contact us directly."
         );
       }
     } catch (error) {
       console.error("Inquiry submission network error:", error);
       // Keep entered form data intact so customer can retry
       setShowError(true);
-      setErrorMessage("Unable to send your inquiry at this moment. Please check your connection and try again.");
+      setErrorMessage(
+        error && error.name === "AbortError"
+          ? "Request timed out. Please check your connection or contact us directly."
+          : "Unable to send your inquiry at this moment. Please check your connection and try again."
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -411,7 +443,7 @@ const Contact = () => {
                 <div className="flex items-center gap-1 sm:gap-2">
                   <span className="text-white/50">SS STEEL</span>
                   <span className="text-white/70 sm:text-white/80">
-                    304 / 316 / 321
+                    202 / 304 / 316 / 310 / 904 / 904L
                   </span>
                 </div>
                 <span className="text-white/20 hidden sm:inline">|</span>
