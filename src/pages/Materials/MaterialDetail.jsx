@@ -171,8 +171,8 @@ const MaterialDetail = () => {
                   Back to {material.name}
                 </Link>
 
-                <a
-                  href={`mailto:${contact?.email || "info@rpmexport.in"}`}
+                <Link
+                  to={`/contact?product=${encodeURIComponent(material?.name || "")}#quote-form`}
                   className="ml-auto inline-flex items-center gap-2 bg-[#173F52] hover:bg-[#122a6e] text-white text-sm font-medium px-5 py-2.5 rounded-lg transition duration-200 shadow-sm hover:shadow-md"
                 >
                   <svg
@@ -190,7 +190,7 @@ const MaterialDetail = () => {
                     />
                   </svg>
                   Get A Quote
-                </a>
+                </Link>
               </div>
             </div>
           </div>

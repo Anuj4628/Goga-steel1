@@ -103,7 +103,7 @@ export default function ProductDetails() {
         style={{ backgroundImage: `url(${bannerIndustrial})` }}
       >
         <div className="absolute inset-0 bg-gradient-to-r from-[#173F52]/90 to-[#173F52]/70"></div>
-        <div className="absolute inset-0 bg-[url('/src/assets/images/pattern-dots.svg')] opacity-10"></div>
+        <div className="absolute inset-0 bg-[url('/pattern-dots.svg')] opacity-10"></div>
         <div className="relative max-w-7xl mx-auto h-full flex items-center px-4 sm:px-5 md:px-8 lg:px-10">
           <div className="max-w-3xl w-full">
             <div className="flex items-center gap-3 mb-3 sm:mb-4">
@@ -241,8 +241,8 @@ export default function ProductDetails() {
                   Back to {displayCategory}
                 </Link>
 
-                <a
-                  href={`mailto:${contact?.email || "gogastainless@gmail.com"}?cc=info.gogastainless@gmail.com`}
+                <Link
+                  to={`/contact?product=${encodeURIComponent(product?.title || "")}#quote-form`}
                   className="ml-auto inline-flex items-center gap-1.5 sm:gap-2 bg-[#173F52] hover:bg-[#122a6e] text-white text-xs sm:text-sm font-medium px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg transition duration-200 shadow-sm hover:shadow-md"
                 >
                   <svg
@@ -260,7 +260,7 @@ export default function ProductDetails() {
                     />
                   </svg>
                   Get A Quote
-                </a>
+                </Link>
               </div>
             </div>
           </div>

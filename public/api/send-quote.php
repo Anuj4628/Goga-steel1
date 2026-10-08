@@ -12,13 +12,14 @@ error_reporting(E_ALL);
 // Security & CORS Headers
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept");
 header("Access-Control-Max-Age: 86400");
 header("X-Content-Type-Options: nosniff");
 
 // Handle Preflight Request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
+    echo json_encode(['status' => 'preflight_ok', 'success' => true]);
     exit;
 }
 
@@ -80,6 +81,7 @@ $businessCc    = getEnvVar('BUSINESS_CC_EMAIL', 'gogastainless@gmail.com');
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     echo json_encode([
         'status'         => 'ok',
+        'success'        => true,
         'endpoint'       => '/api/send-quote',
         'runtime'        => 'PHP ' . PHP_VERSION,
         'smtpConfigured' => !empty($smtpPass),
@@ -577,20 +579,41 @@ try {
         $lastError = $e2->getMessage();
         error_log("[GOGA SMTP TLS:587 ERROR] " . $lastError);
 
-        // Try 3: Fallback to PHP native mail() if hosting firewall blocks outbound sockets
-        $mailHeaders  = "From: $smtpFrom\r\n";
-        $mailHeaders .= "Reply-To: $replyToHeader\r\n";
-        if (!empty($businessCc) && $businessCc !== $businessEmail) {
-            $mailHeaders .= "Cc: $businessCc\r\n";
-        }
-        $mailHeaders .= "MIME-Version: 1.0\r\n";
-        $mailHeaders .= "Content-Type: text/html; charset=UTF-8\r\n";
+        // Try 4: Outbound HTTPS cURL Relay over port 443 (Port 443 is never blocked by hosting firewalls)
+        if (function_exists('curl_init')) {
+            $ch = curl_init('https://formsubmit.co/ajax/' . urlencode($businessEmail));
+            $postPayload = json_encode([
+                'name'          => $name,
+                'company'       => $company,
+                'email'         => $email,
+                'phone'         => $phone,
+                'product'       => $product,
+                'quantity'      => $quantity,
+                'specification' => $specification,
+                'message'       => $message,
+                '_subject'      => $businessSubject,
+                '_cc'           => $businessCc,
+                '_template'     => 'table'
+            ]);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postPayload);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Accept: application/json'
+            ]);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            $curlResp = curl_exec($ch);
+            $curlHttp = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr  = curl_error($ch);
+            curl_close($ch);
 
-        $mailSent = @mail($businessEmail, $businessSubject, $businessHtml, $mailHeaders);
-        if ($mailSent) {
-            $sentSuccessfully = true;
-        } else {
-            error_log("[GOGA PHP MAIL() ERROR] Native mail() also failed.");
+            if ($curlHttp >= 200 && $curlHttp < 300) {
+                $sentSuccessfully = true;
+            } else {
+                $lastError .= " | HTTPS cURL relay error ($curlHttp): " . ($curlErr ?: substr($curlResp, 0, 100));
+            }
         }
     }
 }
@@ -599,8 +622,8 @@ if (!$sentSuccessfully) {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error'   => 'Unable to send your inquiry at this moment. Please try again or contact us directly.',
-        'details' => 'Email delivery failed on production host.'
+        'error'   => 'Email delivery failed on server: ' . ($lastError ?: 'Outbound SMTP port blocked by host firewall.'),
+        'details' => $lastError ?: 'All socket and mail transports failed.'
     ]);
     exit;
 }

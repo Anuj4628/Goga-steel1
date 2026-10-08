@@ -199,7 +199,7 @@ export default async function handler(req, res) {
       } catch {
         return res.status(400).json({
           success: false,
-          error: "Something went wrong. Please try again.",
+          error: "Invalid request body format. Expected JSON payload.",
         });
       }
     }
@@ -207,15 +207,15 @@ export default async function handler(req, res) {
     if (!body || typeof body !== "object") {
       return res.status(400).json({
         success: false,
-        error: "Something went wrong. Please try again.",
+        error: "Missing request body. Please submit valid quote details.",
       });
     }
 
     const honeypot = sanitizeInput(body.website || body.honeypot || body.companyWebsite || "");
     if (honeypot) {
-      return res.status(400).json({
-        success: false,
-        error: "Something went wrong. Please try again.",
+      return res.status(200).json({
+        success: true,
+        message: "Your inquiry has been sent successfully.",
       });
     }
 
@@ -285,14 +285,14 @@ export default async function handler(req, res) {
       businessCc,
     } = getSmtpConfig();
 
-    // If SMTP credentials are missing, fail cleanly with customer-friendly error
+    // If SMTP credentials are missing, fail cleanly with descriptive error
     if (!smtpPass) {
       console.error(
-        "[SERVER CONFIG ERROR] Neither SMTP_PASS nor GMAIL_APP_PASSWORD is set in Vercel Environment Variables. Please configure SMTP_PASS in Vercel Project Settings > Environment Variables and redeploy."
+        "[SERVER CONFIG ERROR] Neither SMTP_PASS nor GMAIL_APP_PASSWORD is set in environment variables."
       );
       return res.status(500).json({
         success: false,
-        error: "Unable to send your inquiry at this moment. Please try again or contact us directly.",
+        error: "Server email configuration error: SMTP credentials not set.",
         debugCode: "CONFIG_MISSING_SMTP_PASS",
       });
     }
@@ -680,7 +680,7 @@ Goga Stainless
     console.error("[QUOTE SUBMISSION EXCEPTION]:", error && error.stack ? error.stack : error);
     return res.status(500).json({
       success: false,
-      error: "Unable to send your inquiry at this moment. Please try again or contact us directly.",
+      error: `Email transmission error: ${error && error.message ? error.message : String(error)}`,
       debugError: error && error.message ? error.message : String(error),
     });
   }

@@ -44,6 +44,32 @@ const Contact = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [submittedTicket, setSubmittedTicket] = useState("");
+
+  // Prefill product or material from URL search parameters and scroll to quote form if targeted
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const productParam = params.get("product") || params.get("material") || params.get("item");
+      if (productParam) {
+        setFormData((prev) => ({
+          ...prev,
+          product: decodeURIComponent(productParam),
+        }));
+      }
+
+      if (window.location.hash === "#quote-form" || window.location.hash === "#contact-form" || productParam) {
+        setTimeout(() => {
+          const formEl = document.getElementById("quote-form");
+          if (formEl) {
+            formEl.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }, 250);
+      }
+    } catch {
+      // Ignore URL parsing errors
+    }
+  }, []);
 
   useEffect(() => {
     if (showSuccess) {
@@ -58,7 +84,7 @@ const Contact = () => {
     if (showError) {
       const timer = setTimeout(() => {
         setShowError(false);
-      }, 7000);
+      }, 9000);
       return () => clearTimeout(timer);
     }
   }, [showError]);
@@ -163,14 +189,19 @@ const Contact = () => {
     setShowError(false);
     setShowSuccess(false);
 
+    const ticketId = `GS-RFQ-${Math.floor(100000 + Math.random() * 900000)}`;
+
     try {
       const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
       const primaryUrl = baseUrl ? `${baseUrl}/api/send-quote` : "/api/send-quote";
       const phpFallbackUrl = baseUrl ? `${baseUrl}/api/send-quote.php` : "/api/send-quote.php";
+      const customApiUrl = import.meta.env.VITE_QUOTE_API_URL || "";
+      const web3FormsKey = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY || "";
+      const staticCloudRelay = "https://formsubmit.co/ajax/info.gogastainless@gmail.com";
 
       const sendToEndpoint = async (url) => {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 35000);
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
         try {
           const res = await fetch(url, {
             method: "POST",
@@ -191,23 +222,98 @@ const Contact = () => {
           return { isHtml: false, status: res.status, data, ok: res.ok };
         } catch (fetchErr) {
           clearTimeout(timeoutId);
-          throw fetchErr;
+          return { networkError: true, error: fetchErr };
         }
       };
 
+      let delivered = false;
+      let lastErrorMessage = "";
+
+      // Tier 1: Local / Configured Production API
       let attempt = await sendToEndpoint(primaryUrl);
 
-      // If the primary endpoint returned HTML (SPA fallback rewrite) or 404, gracefully try .php
-      if ((attempt.isHtml || attempt.status === 404) && primaryUrl !== phpFallbackUrl) {
-        console.warn(`[GOGA API] Endpoint ${primaryUrl} returned non-JSON, attempting ${phpFallbackUrl}`);
+      // If the primary endpoint returned HTML (SPA rewrite on static host) or 404/network error, try direct .php
+      if ((attempt.isHtml || attempt.status === 404 || attempt.networkError) && primaryUrl !== phpFallbackUrl) {
         attempt = await sendToEndpoint(phpFallbackUrl);
       }
 
       if (attempt.data && attempt.data.success === true) {
+        delivered = true;
+      } else if (attempt.data && attempt.data.error) {
+        lastErrorMessage = attempt.data.error;
+      }
+
+      // Tier 2: Static-Safe Cloud Failover (Runs automatically on pure static hosts or if server email dispatch failed)
+      if (!delivered) {
+        console.info("[GOGA API] Attempting static cloud email relay fallback...");
+        const relayTarget = customApiUrl || staticCloudRelay;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+        try {
+          let relayRes;
+          if (web3FormsKey) {
+            relayRes = await fetch("https://api.web3forms.com/submit", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify({
+                access_key: web3FormsKey,
+                subject: `New Get Quote Request: ${formData.product} [${ticketId}]`,
+                from_name: formData.name,
+                name: formData.name,
+                email: formData.email,
+                company: formData.company,
+                phone: formData.phone,
+                product: formData.product,
+                quantity: formData.quantity,
+                specification: formData.specification,
+                message: formData.message,
+              }),
+              signal: controller.signal,
+            });
+          } else {
+            relayRes = await fetch(relayTarget, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify({
+                name: formData.name,
+                company: formData.company,
+                email: formData.email,
+                phone: formData.phone,
+                product: formData.product,
+                quantity: formData.quantity,
+                specification: formData.specification,
+                message: formData.message,
+                _subject: `New Get Quote Request: ${formData.product} [${ticketId}] - Goga Stainless`,
+                _cc: "gogastainless@gmail.com",
+                _template: "table",
+              }),
+              signal: controller.signal,
+            });
+          }
+          clearTimeout(timeoutId);
+
+          if (relayRes.ok) {
+            const relayData = await relayRes.json().catch(() => ({}));
+            if (relayData.success === true || relayData.success === "true" || relayRes.status === 200) {
+              delivered = true;
+            }
+          }
+        } catch (relayErr) {
+          clearTimeout(timeoutId);
+          console.warn("[GOGA API] Static cloud relay exception:", relayErr);
+          if (!lastErrorMessage) {
+            lastErrorMessage = relayErr?.message || "Cloud delivery attempt failed";
+          }
+        }
+      }
+
+      if (delivered) {
+        setSubmittedTicket(ticketId);
         setShowSuccess(true);
         setShowError(false);
 
-        // Reset form ONLY on successful delivery
+        // Reset form ONLY on verified delivery
         setFormData({
           name: "",
           company: "",
@@ -221,21 +327,18 @@ const Contact = () => {
         });
         setErrors({});
       } else {
-        // Keep entered form data intact so customer can retry
         setShowError(true);
-        const serverError = attempt.data && attempt.data.error;
         setErrorMessage(
-          serverError || "Unable to send your inquiry at this moment. Please try again or contact us directly."
+          lastErrorMessage || "Unable to send your inquiry. Please check your network connection or email info.gogastainless@gmail.com directly."
         );
       }
     } catch (error) {
       console.error("Inquiry submission network error:", error);
-      // Keep entered form data intact so customer can retry
       setShowError(true);
       setErrorMessage(
         error && error.name === "AbortError"
-          ? "Request timed out. Please check your connection or contact us directly."
-          : "Unable to send your inquiry at this moment. Please check your connection and try again."
+          ? "Request timed out. Please check your connection or contact info.gogastainless@gmail.com directly."
+          : `Submission error: ${error?.message || "Please check your internet connection."}`
       );
     } finally {
       setIsSubmitting(false);
@@ -275,7 +378,7 @@ const Contact = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <h4 className="text-base font-bold text-slate-900 uppercase tracking-wide">
-                      Your inquiry has been sent successfully.
+                      Quote Request Transmitted Successfully
                     </h4>
                     <button
                       onClick={closeSuccessToast}
@@ -287,7 +390,7 @@ const Contact = () => {
                   </div>
 
                   <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                    Thank you for contacting Goga Stainless. Our team will get back to you shortly.
+                    Thank you for choosing Goga Stainless. Your requirement has been registered{submittedTicket ? ` [Ref: ${submittedTicket}]` : ""} and transmitted to our sales desk. Our engineering team will review your specifications and contact you shortly.
                   </p>
                 </div>
               </div>
@@ -368,7 +471,7 @@ const Contact = () => {
         {/* ================= SAME OVERLAY ON MOBILE & DESKTOP ================= */}
         <div className="absolute inset-0 bg-gradient-to-r from-[#173f52]/80 via-[#173f52]/40 to-transparent z-10"></div>
         <div className="absolute inset-0 bg-gradient-to-t from-[#173f52]/40 via-transparent to-transparent z-10"></div>
-        <div className="absolute inset-0 bg-[url('/src/assets/images/pattern-dots.svg')] opacity-10 z-10"></div>
+        <div className="absolute inset-0 bg-[url('/pattern-dots.svg')] opacity-10 z-10"></div>
 
         {/* ================= BOTTOM GRADIENT SHADOW ================= */}
         <div className="absolute inset-x-0 bottom-0 h-[70%] bg-gradient-to-t from-[#173f52]/90 via-[#173f52]/40 to-transparent z-10"></div>
@@ -403,12 +506,16 @@ const Contact = () => {
                 Explore Products
                 <FaArrowRight className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 lg:w-3.5 lg:h-3.5 xl:w-4 xl:h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
-              <Link
-                to="/contact"
-                className="border-2 border-white/30 hover:border-white text-white font-semibold px-3 sm:px-4 md:px-5 lg:px-6 xl:px-7 py-1.5 sm:py-2 md:py-2.5 lg:py-3 xl:py-3.5 rounded-lg sm:rounded-xl transition-all duration-300 hover:bg-white/10 text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg"
+              <a
+                href="#quote-form"
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.getElementById("quote-form")?.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="border-2 border-white/30 hover:border-white text-white font-semibold px-3 sm:px-4 md:px-5 lg:px-6 xl:px-7 py-1.5 sm:py-2 md:py-2.5 lg:py-3 xl:py-3.5 rounded-lg sm:rounded-xl transition-all duration-300 hover:bg-white/10 text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg cursor-pointer"
               >
                 Get A Quote
-              </Link>
+              </a>
             </div>
 
             {/* Bottom Section - Divider - Hidden on mobile, visible on desktop */}
@@ -843,7 +950,8 @@ const Contact = () => {
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
-            className="bg-white p-8 md:p-12 flex flex-col justify-center"
+            className="bg-white p-8 md:p-12 flex flex-col justify-center scroll-mt-24"
+            id="quote-form"
           >
             <div className="flex items-center gap-3 mb-2">
               <span className="w-10 h-0.5 bg-[#D92B20]"></span>
@@ -1057,11 +1165,11 @@ const Contact = () => {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Sending...
+                    Submitting Quote Request...
                   </>
                 ) : (
                   <>
-                    Send Message
+                    Submit Quote Request
                     <Send className="h-4 w-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
                   </>
                 )}

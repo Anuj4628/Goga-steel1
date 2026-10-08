@@ -140,13 +140,35 @@ export const getWhatsAppUrl = (contactObj = contact) => {
 };
 
 /**
- * Generate mailto URL
- * @param {Object} contactObj - Contact object (optional, uses imported contact by default)
- * @returns {string} Mailto URL
+ * Safely generate a quote URL that navigates to the on-site RFQ form
+ * rather than launching an external desktop email application.
+ * @param {string} productName - Optional product name to pre-fill
+ * @returns {string} Relative URL to quote form
  */
-export const getMailToUrl = (contactObj = contact) => {
-  const email = getEmail();
-  return `mailto:${email}`;
+export const getQuoteUrl = (productName = "") => {
+  if (productName && typeof productName === "string") {
+    return `/contact?product=${encodeURIComponent(productName.trim())}#quote-form`;
+  }
+  return "/contact#quote-form";
+};
+
+/**
+ * Generate quote inquiry URL (routes to on-site form to prevent unnecessary email client popups)
+ * @param {Object} contactObj - Contact object (optional)
+ * @param {string} productName - Product name (optional)
+ * @returns {string} URL to quote form
+ */
+export const getMailToUrl = (contactObj = contact, productName = "") => {
+  return getQuoteUrl(productName);
+};
+
+/**
+ * Direct mailto link (only if explicit mail client action is needed)
+ * @param {string} emailAddress - Email address
+ * @returns {string} mailto: URL
+ */
+export const getDirectMailToUrl = (emailAddress = getEmail()) => {
+  return `mailto:${emailAddress}`;
 };
 
 /**
@@ -167,5 +189,7 @@ export default {
   getContactInfo,
   getWhatsAppUrl,
   getMailToUrl,
+  getQuoteUrl,
+  getDirectMailToUrl,
   getTelUrl,
 };

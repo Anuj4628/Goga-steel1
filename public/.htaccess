@@ -1,21 +1,26 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteBase /
 
-  # 1. API Route: Direct /api/send-quote to PHP script without touching SPA router
+  # 1. API Route: Direct /api/send-quote directly to PHP handler without touching SPA router
   RewriteRule ^api/send-quote/?$ api/send-quote.php [L,QSA]
+  RewriteRule ^api/send-quote\.php$ api/send-quote.php [L,QSA]
 
-  # 2. Prevent rewriting if actual file or directory exists
-  RewriteRule ^index\.html$ - [L]
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
+  # 2. Pass existing files and directories directly without rewriting
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
 
-  # 3. SPA Route Fallback
-  RewriteRule . /index.html [L]
+  # 3. SPA Route Fallback: All react frontend paths pass to index.html
+  RewriteRule ^ index.html [L]
 </IfModule>
 
-# Security: Block direct access to hidden files and environment files
+# Security: Block direct access to environment files and hidden files
 <FilesMatch "^\.env">
   Order allow,deny
   Deny from all
 </FilesMatch>
+
+# Enable proper MIME types and Security Headers
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+</IfModule>

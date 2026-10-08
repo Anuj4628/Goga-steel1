@@ -123,7 +123,7 @@ const ProductMaterials = () => {
         style={{ backgroundImage: `url(${bannerIndustrial})` }}
       >
         <div className="absolute inset-0 bg-gradient-to-r from-[#173F52]/90 to-[#173F52]/70"></div>
-        <div className="absolute inset-0 bg-[url('/src/assets/images/pattern-dots.svg')] opacity-10"></div>
+        <div className="absolute inset-0 bg-[url('/pattern-dots.svg')] opacity-10"></div>
         <div className="relative max-w-7xl mx-auto h-full flex items-center px-4 sm:px-5 md:px-8 lg:px-10">
           <div className="max-w-3xl w-full">
             <div className="flex items-center gap-3 mb-3 sm:mb-4">

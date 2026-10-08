@@ -782,10 +782,10 @@ const DuplexSteelPlates = () => {
                 Email us for a quote or contact us for more information.
               </p>
               <a
-                href={getMailToUrl(contact)}
+                href="/contact#quote-form"
                 className="inline-block bg-[#D92B20] hover:bg-[#c08a1a] text-white font-semibold px-6 py-2.5 rounded-lg transition text-sm"
               >
-                Email Us Now
+                Get A Quote Now
               </a>
             </div>
           </div>

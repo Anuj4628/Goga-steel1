@@ -375,7 +375,7 @@ export default function Navbar() {
 
               <div className="flex items-center px-4 relative z-10 flex-shrink-0">
                 <Link
-                  to="/contact"
+                  to="/contact#quote-form"
                   className="bg-white hover:bg-[#E52713] text-[#1A3A5C] hover:text-white px-5 py-2.5 rounded-lg text-xs font-bold tracking-wide transition-all duration-300 whitespace-nowrap shadow-sm hover:shadow-md hover:shadow-[#E52713]/20"
                 >
                   ENQUIRY

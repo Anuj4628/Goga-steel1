@@ -1,16 +1,14 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteBase /api/
 
-  # If requested send-quote without extension, route to send-quote.php
+  # Route /api/send-quote and /api/send-quote/ directly to send-quote.php
   RewriteRule ^send-quote/?$ send-quote.php [L,QSA]
 </IfModule>
 
-# Ensure PHP scripts execute and DirectoryIndex recognizes index.php
-DirectoryIndex index.php send-quote.php
+DirectoryIndex send-quote.php
 
 <IfModule mod_headers.c>
   Header set Access-Control-Allow-Origin "*"
   Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
-  Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+  Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept"
 </IfModule>

@@ -69,5 +69,17 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   return {
     plugins: [react(), tailwindcss(), apiDevServerPlugin(env)],
+    build: {
+      chunkSizeWarningLimit: 2000,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ["react", "react-dom", "react-router-dom"],
+            icons: ["lucide-react", "react-icons"],
+            motion: ["framer-motion"],
+          },
+        },
+      },
+    },
   };
 });
