@@ -18,7 +18,7 @@ const slides = [
     tagline: "GOGA STAINLESS",
     categories: ["SHEETS & PLATES", "FLANGES", "FASTENERS"],
     grades: [
-      { name: "SS STEEL", spec: "304 / 316 / 321" },
+      { name: "SS STEEL", spec: "202 / 304 / 316 / 310 / 904 / 904L" },
       { name: "DUPLEX STEEL", spec: "SAT 2205 / 2507" },
       { name: "TITANIUM", spec: "GRADE 2 / 5" },
     ],
@@ -31,7 +31,7 @@ const slides = [
     tagline: "GOGA STAINLESS",
     categories: ["SHEETS & PLATES", "FLANGES", "FASTENERS"],
     grades: [
-      { name: "SS STEEL", spec: "304 / 316 / 321" },
+      { name: "SS STEEL", spec: "202 / 304 / 316 / 310 / 904 / 904L" },
       { name: "DUPLEX STEEL", spec: "SAT 2205 / 2507" },
       { name: "TITANIUM", spec: "GRADE 2 / 5" },
     ],
@@ -43,7 +43,7 @@ const slides = [
     tagline: "GOGA STAINLESS",
     categories: ["SHEETS & PLATES", "FLANGES", "FASTENERS"],
     grades: [
-      { name: "SS STEEL", spec: " 304 / 316 / 321" },
+      { name: "SS STEEL", spec: "202 / 304 / 316 / 310 / 904 / 904L" },
       { name: "DUPLEX STEEL", spec: "SAT 2205 / 2507" },
       { name: "TITANIUM", spec: "GRADE 2 / 5" },
     ],
@@ -55,7 +55,7 @@ const slides = [
     tagline: "GOGA STAINLESS",
     categories: ["SHEETS & PLATES", "FLANGES", "FASTENERS"],
     grades: [
-      { name: "SS STEEL", spec: "304 / 316 / 321" },
+      { name: "SS STEEL", spec: "202 / 304 / 316 / 310 / 904 / 904L" },
       { name: "DUPLEX STEEL", spec: "SAT 2205 / 2507" },
       { name: "TITANIUM", spec: "GRADE 2 / 5" },
     ],
@@ -67,7 +67,7 @@ const slides = [
     tagline: "GOGA STAINLESS",
     categories: ["SHEETS & PLATES", "FLANGES", "FASTENERS"],
     grades: [
-      { name: "SS STEEL", spec: "304 / 316 / 321" },
+      { name: "SS STEEL", spec: "202 / 304 / 316 / 310 / 904 / 904L" },
       { name: "DUPLEX STEEL", spec: "SAT 2205 / 2507" },
       { name: "TITANIUM", spec: "GRADE 2 / 5" },
     ],
@@ -79,7 +79,7 @@ const slides = [
     tagline: "GOGA STAINLESS",
     categories: ["SHEETS & PLATES", "FLANGES", "FASTENERS"],
     grades: [
-      { name: "SS STEEL", spec: "304 / 316 / 321" },
+      { name: "SS STEEL", spec: "202 / 304 / 316 / 310 / 904 / 904L" },
       { name: "DUPLEX STEEL", spec: "SAT 2205 / 2507" },
       { name: "TITANIUM", spec: "GRADE 2 / 5" },
     ],
