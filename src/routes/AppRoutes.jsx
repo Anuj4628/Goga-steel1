@@ -48,8 +48,10 @@ const AppRoutes = () => {
       {/* Gallery */}
       <Route path="/gallery" element={<Gallery />} />
 
-      {/* Contact */}
+      {/* Contact & Get Quote */}
       <Route path="/contact" element={<Contact />} />
+      <Route path="/get-quote" element={<Contact />} />
+      <Route path="/quote" element={<Contact />} />
     </Routes>
   );
 };

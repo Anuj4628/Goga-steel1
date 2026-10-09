@@ -1,7 +1,8 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
+  RewriteBase /
 
-  # 1. API Route: Direct /api/send-quote directly to PHP handler without touching SPA router
+  # 1. API Routes: Direct /api/send-quote and /api/send-quote.php directly to PHP handler
   RewriteRule ^api/send-quote/?$ api/send-quote.php [L,QSA]
   RewriteRule ^api/send-quote\.php$ api/send-quote.php [L,QSA]
 
@@ -14,13 +15,18 @@
   RewriteRule ^ index.html [L]
 </IfModule>
 
-# Security: Block direct access to environment files and hidden files
-<FilesMatch "^\.env">
-  Order allow,deny
-  Deny from all
+# Security: Block direct access to environment and configuration files
+<FilesMatch "^(\.env|config\.php|config\.sample\.php)">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
 </FilesMatch>
 
-# Enable proper MIME types and Security Headers
+# Security Headers
 <IfModule mod_headers.c>
   Header set X-Content-Type-Options "nosniff"
 </IfModule>

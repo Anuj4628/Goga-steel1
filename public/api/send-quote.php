@@ -54,7 +54,14 @@ function loadEnvFile() {
 }
 loadEnvFile();
 
+// Load config.php if present
+$apiConfig = [];
+if (file_exists(__DIR__ . '/config.php')) {
+    $apiConfig = include __DIR__ . '/config.php';
+}
+
 function getEnvVar($key, $default = '') {
+    global $apiConfig;
     $val = getenv($key);
     if ($val !== false && trim($val) !== '') {
         return trim($val);
@@ -65,6 +72,9 @@ function getEnvVar($key, $default = '') {
     if (isset($_SERVER[$key]) && trim($_SERVER[$key]) !== '') {
         return trim($_SERVER[$key]);
     }
+    if (isset($apiConfig[$key]) && trim($apiConfig[$key]) !== '') {
+        return trim($apiConfig[$key]);
+    }
     return $default;
 }
 
@@ -72,20 +82,22 @@ function getEnvVar($key, $default = '') {
 $smtpHost      = getEnvVar('SMTP_HOST', 'smtp.gmail.com');
 $smtpPort      = (int)getEnvVar('SMTP_PORT', '465');
 $smtpUser      = getEnvVar('SMTP_USER', 'info.gogastainless@gmail.com');
-$smtpPass      = preg_replace('/\s+/', '', getEnvVar('SMTP_PASS', 'yohojenkwvzpgnvn'));
+$smtpPass      = preg_replace('/\s+/', '', getEnvVar('SMTP_PASS', ''));
 $smtpFrom      = getEnvVar('SMTP_FROM', '"Goga Stainless" <' . $smtpUser . '>');
 $businessEmail = getEnvVar('BUSINESS_EMAIL', 'info.gogastainless@gmail.com');
-$businessCc    = getEnvVar('BUSINESS_CC_EMAIL', 'gogastainless@gmail.com');
+$businessCc    = getEnvVar('BUSINESS_CC_EMAIL', getEnvVar('BUSINESS_CC', 'gogastainless@gmail.com'));
 
 // 1. Healthcheck for GET requests
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     echo json_encode([
         'status'         => 'ok',
         'success'        => true,
-        'endpoint'       => '/api/send-quote',
+        'endpoint'       => '/api/send-quote.php',
         'runtime'        => 'PHP ' . PHP_VERSION,
         'smtpConfigured' => !empty($smtpPass),
-        'message'        => 'Goga Stainless Email API is online and ready.'
+        'message'        => !empty($smtpPass)
+            ? 'Goga Stainless Email API is online and SMTP is configured.'
+            : 'SMTP credentials missing. Please configure SMTP_PASS in config.php or .env on the server.'
     ]);
     exit;
 }
@@ -146,12 +158,7 @@ $message       = cleanStr($data['message'] ?? '');
 // Strict Validation
 if (mb_strlen($name) < 2) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Representative name is required (minimum 2 characters).']);
-    exit;
-}
-if (empty($company)) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Company name is required.']);
+    echo json_encode(['success' => false, 'error' => 'Name is required (minimum 2 characters).']);
     exit;
 }
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -409,13 +416,25 @@ $customerHtml = '<!DOCTYPE html>
 // 3. Reliable Native PHP SMTP Implementation
 // -------------------------------------------------------------
 
+function safeSocketWrite($socket, $data) {
+    $totalWritten = 0;
+    $length = strlen($data);
+    while ($totalWritten < $length) {
+        $written = @fwrite($socket, substr($data, $totalWritten));
+        if ($written === false || $written === 0) {
+            throw new Exception("Socket write failed: connection was reset or closed by SMTP server.");
+        }
+        $totalWritten += $written;
+    }
+}
+
 function smtpGetResponse($socket) {
     $response = '';
     while (!feof($socket)) {
         $line = fgets($socket, 515);
         if ($line === false) break;
         $response .= $line;
-        if (isset($line[3]) && $line[3] === ' ') {
+        if (strlen($line) >= 4 && $line[3] === ' ') {
             break;
         }
     }
@@ -424,7 +443,7 @@ function smtpGetResponse($socket) {
 
 function smtpSendCommand($socket, $cmd, $expectedCode) {
     if ($cmd !== null) {
-        fputs($socket, $cmd . "\r\n");
+        safeSocketWrite($socket, $cmd . "\r\n");
     }
     $response = smtpGetResponse($socket);
     $code = (int)substr($response, 0, 3);
@@ -456,8 +475,10 @@ function sendSmtpEmail($host, $port, $user, $pass, $from, $recipients, $replyTo,
     // Initial greeting
     smtpGetResponse($socket);
 
-    // EHLO
-    smtpSendCommand($socket, "EHLO " . (gethostname() ?: 'localhost'), 250);
+    // EHLO with clean valid hostname
+    $heloHost = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : (gethostname() ?: 'gogastainless.com');
+    $heloHost = preg_replace('/[^a-zA-Z0-9\.\-]/', '', $heloHost) ?: 'gogastainless.com';
+    smtpSendCommand($socket, "EHLO " . $heloHost, 250);
 
     // TLS upgrade if port 587
     if ($port == 587) {
@@ -465,7 +486,7 @@ function sendSmtpEmail($host, $port, $user, $pass, $from, $recipients, $replyTo,
         if (!stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
             throw new Exception("STARTTLS negotiation failed");
         }
-        smtpSendCommand($socket, "EHLO " . (gethostname() ?: 'localhost'), 250);
+        smtpSendCommand($socket, "EHLO " . $heloHost, 250);
     }
 
     // Authenticate
@@ -518,7 +539,7 @@ function sendSmtpEmail($host, $port, $user, $pass, $from, $recipients, $replyTo,
     // Escape dots at line start for SMTP
     $body = preg_replace('/^\./m', '..', $body);
 
-    fputs($socket, $body . "\r\n.\r\n");
+    safeSocketWrite($socket, $body . "\r\n.\r\n");
     $dataResp = smtpGetResponse($socket);
     $dataCode = (int)substr($dataResp, 0, 3);
     if ($dataCode !== 250) {
@@ -526,7 +547,7 @@ function sendSmtpEmail($host, $port, $user, $pass, $from, $recipients, $replyTo,
     }
 
     // Quit cleanly
-    @fputs($socket, "QUIT\r\n");
+    @safeSocketWrite($socket, "QUIT\r\n");
     @fclose($socket);
 
     return true;
@@ -541,7 +562,18 @@ $replyToHeader = "\"$name\" <$email>";
 $sentSuccessfully = false;
 $lastError = '';
 
-// Try 1: Google SMTP via SSL Port 465
+// Check if credentials are present before attempting
+if (empty($smtpPass) && empty(getEnvVar('WEB3FORMS_ACCESS_KEY', ''))) {
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error'   => 'Server configuration error: SMTP_PASS is missing in server configuration. Please configure config.php or .env on your cPanel server.',
+        'details' => 'Missing SMTP_PASS'
+    ]);
+    exit;
+}
+
+// Transport 1: Google SMTP via SSL Port 465
 try {
     sendSmtpEmail(
         $smtpHost,
@@ -557,13 +589,13 @@ try {
     );
     $sentSuccessfully = true;
 } catch (Exception $e1) {
-    $lastError = $e1->getMessage();
+    $lastError = "SSL 465: " . $e1->getMessage();
     error_log("[GOGA SMTP SSL:465 ERROR] " . $lastError);
 
-    // Try 2: Google SMTP via TLS Port 587 if SSL failed
+    // Transport 2: Google SMTP via TLS Port 587 if SSL failed
     try {
         sendSmtpEmail(
-            'smtp.gmail.com',
+            $smtpHost,
             587,
             $smtpUser,
             $smtpPass,
@@ -576,43 +608,53 @@ try {
         );
         $sentSuccessfully = true;
     } catch (Exception $e2) {
-        $lastError = $e2->getMessage();
-        error_log("[GOGA SMTP TLS:587 ERROR] " . $lastError);
+        $lastError .= " | TLS 587: " . $e2->getMessage();
+        error_log("[GOGA SMTP TLS:587 ERROR] " . $e2->getMessage());
 
-        // Try 4: Outbound HTTPS cURL Relay over port 443 (Port 443 is never blocked by hosting firewalls)
-        if (function_exists('curl_init')) {
-            $ch = curl_init('https://formsubmit.co/ajax/' . urlencode($businessEmail));
-            $postPayload = json_encode([
-                'name'          => $name,
-                'company'       => $company,
-                'email'         => $email,
-                'phone'         => $phone,
-                'product'       => $product,
-                'quantity'      => $quantity,
-                'specification' => $specification,
-                'message'       => $message,
-                '_subject'      => $businessSubject,
-                '_cc'           => $businessCc,
-                '_template'     => 'table'
-            ]);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $postPayload);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'Accept: application/json'
-            ]);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            $curlResp = curl_exec($ch);
-            $curlHttp = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlErr  = curl_error($ch);
-            curl_close($ch);
+        // Transport 3: Web3Forms relay ONLY if explicitly configured with an ACCESS KEY
+        $web3FormsKey = getEnvVar('WEB3FORMS_ACCESS_KEY', '');
+        if (!empty($web3FormsKey) && function_exists('curl_init')) {
+            try {
+                $payload = [
+                    'access_key'    => $web3FormsKey,
+                    'subject'       => $businessSubject,
+                    'name'          => $name,
+                    'company'       => $company,
+                    'email'         => $email,
+                    'phone'         => $phone,
+                    'product'       => $product,
+                    'quantity'      => $quantity,
+                    'specification' => $specification,
+                    'message'       => $message,
+                ];
 
-            if ($curlHttp >= 200 && $curlHttp < 300) {
-                $sentSuccessfully = true;
-            } else {
-                $lastError .= " | HTTPS cURL relay error ($curlHttp): " . ($curlErr ?: substr($curlResp, 0, 100));
+                $ch = curl_init('https://api.web3forms.com/submit');
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json',
+                    'Accept: application/json'
+                ]);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+                $curlResp = curl_exec($ch);
+                $curlHttp = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $curlErr  = curl_error($ch);
+                curl_close($ch);
+
+                if ($curlHttp >= 200 && $curlHttp < 300 && $curlResp) {
+                    $parsed = json_decode($curlResp, true);
+                    if (is_array($parsed) && (!empty($parsed['success']) && ($parsed['success'] === true || $parsed['success'] === 'true'))) {
+                        $sentSuccessfully = true;
+                    } else {
+                        $lastError .= " | Web3Forms error: " . ($parsed['message'] ?? 'Relay rejected');
+                    }
+                } else {
+                    $lastError .= " | Web3Forms HTTP $curlHttp: " . ($curlErr ?: 'No response');
+                }
+            } catch (Exception $eRelay) {
+                $lastError .= " | Relay exception: " . $eRelay->getMessage();
             }
         }
     }
@@ -622,7 +664,7 @@ if (!$sentSuccessfully) {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error'   => 'Email delivery failed on server: ' . ($lastError ?: 'Outbound SMTP port blocked by host firewall.'),
+        'error'   => 'Unable to transmit requirement at this moment. Please try again or contact us directly at info.gogastainless@gmail.com.',
         'details' => $lastError ?: 'All socket and mail transports failed.'
     ]);
     exit;
@@ -655,5 +697,5 @@ try {
 // Clean success output
 echo json_encode([
     'success' => true,
-    'message' => 'Your inquiry has been sent successfully.'
+    'message' => 'Your requirement has been sent successfully. Our team will contact you shortly.'
 ]);

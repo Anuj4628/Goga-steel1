@@ -232,15 +232,10 @@ export default async function handler(req, res) {
     if (!name || name.length < 2) {
       return res.status(400).json({
         success: false,
-        error: "Representative name is required (minimum 2 characters).",
+        error: "Name is required (minimum 2 characters).",
       });
     }
-    if (!company) {
-      return res.status(400).json({
-        success: false,
-        error: "Company name is required.",
-      });
-    }
+    // Company name is optional
     if (!validateEmail(email)) {
       return res.status(400).json({
         success: false,
@@ -673,7 +668,7 @@ Goga Stainless
     return res.status(200).json({
       success: true,
       messageId: businessResult.messageId,
-      message: "Your inquiry has been sent successfully.",
+      message: "Your requirement has been sent successfully. Our team will contact you shortly.",
     });
 
   } catch (error) {

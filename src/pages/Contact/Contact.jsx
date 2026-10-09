@@ -58,7 +58,12 @@ const Contact = () => {
         }));
       }
 
-      if (window.location.hash === "#quote-form" || window.location.hash === "#contact-form" || productParam) {
+      if (
+        window.location.hash === "#quote-form" ||
+        window.location.hash === "#contact-form" ||
+        window.location.pathname.includes("quote") ||
+        productParam
+      ) {
         setTimeout(() => {
           const formEl = document.getElementById("quote-form");
           if (formEl) {
@@ -103,18 +108,16 @@ const Contact = () => {
     switch (name) {
       case "name":
         if (!value.trim() || value.trim().length < 2) {
-          return "Representative Name is required (minimum 2 characters).";
+          return "Name is required (minimum 2 characters).";
         }
         break;
       case "company":
-        if (!value.trim()) {
-          return "Company Name is required.";
-        }
-        break;
+        // Optional
+        return "";
       case "email": {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!value.trim() || !emailRegex.test(value.trim())) {
-          return "Please enter a valid corporate email address.";
+          return "Please enter a valid email address.";
         }
         break;
       }
@@ -132,12 +135,12 @@ const Contact = () => {
         break;
       case "quantity":
         if (!value.trim()) {
-          return "Please specify the quantity or volume needed.";
+          return "Please specify the quantity required.";
         }
         break;
       case "message":
         if (!value.trim() || value.trim().length < 5) {
-          return "Please describe your requirements (minimum 5 characters).";
+          return "Please describe your requirement (minimum 5 characters).";
         }
         break;
       default:
@@ -164,7 +167,7 @@ const Contact = () => {
 
   const validateAll = () => {
     const newErrors = {};
-    const fieldsToValidate = ["name", "company", "email", "phone", "product", "quantity", "message"];
+    const fieldsToValidate = ["name", "email", "phone", "product", "quantity", "message"];
     fieldsToValidate.forEach((f) => {
       const err = validateField(f, formData[f]);
       if (err) newErrors[f] = err;
@@ -197,7 +200,6 @@ const Contact = () => {
       const phpFallbackUrl = baseUrl ? `${baseUrl}/api/send-quote.php` : "/api/send-quote.php";
       const customApiUrl = import.meta.env.VITE_QUOTE_API_URL || "";
       const web3FormsKey = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY || "";
-      const staticCloudRelay = "https://formsubmit.co/ajax/info.gogastainless@gmail.com";
 
       const sendToEndpoint = async (url) => {
         const controller = new AbortController();
@@ -209,102 +211,98 @@ const Contact = () => {
               "Content-Type": "application/json",
               Accept: "application/json",
             },
-            body: JSON.stringify(formData),
+            body: JSON.stringify({
+              ...formData,
+              ticketId,
+            }),
             signal: controller.signal,
           });
           clearTimeout(timeoutId);
 
           const contentType = res.headers.get("content-type") || "";
           if (!contentType.includes("application/json")) {
-            return { isHtml: true, status: res.status, res };
+            return { isHtml: true, status: res.status, ok: false, error: "Non-JSON response from server." };
           }
           const data = await res.json().catch(() => ({}));
-          return { isHtml: false, status: res.status, data, ok: res.ok };
+          const isDelivered = res.ok && (data.success === true || data.status === "success");
+          return { isHtml: false, status: res.status, data, ok: isDelivered };
         } catch (fetchErr) {
           clearTimeout(timeoutId);
-          return { networkError: true, error: fetchErr };
+          return { networkError: true, error: fetchErr, ok: false };
         }
       };
 
       let delivered = false;
       let lastErrorMessage = "";
 
-      // Tier 1: Local / Configured Production API
+      // Step 1: Attempt primary API endpoint (/api/send-quote)
       let attempt = await sendToEndpoint(primaryUrl);
 
-      // If the primary endpoint returned HTML (SPA rewrite on static host) or 404/network error, try direct .php
-      if ((attempt.isHtml || attempt.status === 404 || attempt.networkError) && primaryUrl !== phpFallbackUrl) {
-        attempt = await sendToEndpoint(phpFallbackUrl);
+      // Step 2: If primary didn't succeed and phpFallbackUrl is different, try direct PHP endpoint (/api/send-quote.php)
+      if (!attempt.ok && primaryUrl !== phpFallbackUrl) {
+        console.info("[GOGA Quote] Primary endpoint failed, attempting direct PHP endpoint...", attempt.status || attempt.error);
+        const phpAttempt = await sendToEndpoint(phpFallbackUrl);
+        if (phpAttempt.ok) {
+          attempt = phpAttempt;
+        } else if (phpAttempt.data?.error) {
+          lastErrorMessage = phpAttempt.data.error;
+        }
       }
 
-      if (attempt.data && attempt.data.success === true) {
+      if (attempt.ok && attempt.data?.success === true) {
         delivered = true;
-      } else if (attempt.data && attempt.data.error) {
-        lastErrorMessage = attempt.data.error;
+      } else if (attempt.data?.error) {
+        lastErrorMessage = String(attempt.data.error);
       }
 
-      // Tier 2: Static-Safe Cloud Failover (Runs automatically on pure static hosts or if server email dispatch failed)
-      if (!delivered) {
-        console.info("[GOGA API] Attempting static cloud email relay fallback...");
-        const relayTarget = customApiUrl || staticCloudRelay;
+      // Step 3: If still not delivered, check for explicitly configured custom API or Web3Forms key
+      if (!delivered && customApiUrl) {
+        console.info("[GOGA Quote] Attempting custom configured API endpoint...");
+        const customAttempt = await sendToEndpoint(customApiUrl);
+        if (customAttempt.ok) {
+          delivered = true;
+        } else if (customAttempt.data?.error) {
+          lastErrorMessage = customAttempt.data.error;
+        }
+      }
+
+      if (!delivered && web3FormsKey) {
+        console.info("[GOGA Quote] Attempting Web3Forms relay fallback...");
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 20000);
-
         try {
-          let relayRes;
-          if (web3FormsKey) {
-            relayRes = await fetch("https://api.web3forms.com/submit", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Accept: "application/json" },
-              body: JSON.stringify({
-                access_key: web3FormsKey,
-                subject: `New Get Quote Request: ${formData.product} [${ticketId}]`,
-                from_name: formData.name,
-                name: formData.name,
-                email: formData.email,
-                company: formData.company,
-                phone: formData.phone,
-                product: formData.product,
-                quantity: formData.quantity,
-                specification: formData.specification,
-                message: formData.message,
-              }),
-              signal: controller.signal,
-            });
-          } else {
-            relayRes = await fetch(relayTarget, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Accept: "application/json" },
-              body: JSON.stringify({
-                name: formData.name,
-                company: formData.company,
-                email: formData.email,
-                phone: formData.phone,
-                product: formData.product,
-                quantity: formData.quantity,
-                specification: formData.specification,
-                message: formData.message,
-                _subject: `New Get Quote Request: ${formData.product} [${ticketId}] - Goga Stainless`,
-                _cc: "gogastainless@gmail.com",
-                _template: "table",
-              }),
-              signal: controller.signal,
-            });
-          }
+          const relayRes = await fetch("https://api.web3forms.com/submit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({
+              access_key: web3FormsKey,
+              subject: `New Get Quote Request: ${formData.product} [${ticketId}]`,
+              from_name: formData.name,
+              name: formData.name,
+              email: formData.email,
+              company: formData.company,
+              phone: formData.phone,
+              product: formData.product,
+              quantity: formData.quantity,
+              specification: formData.specification,
+              message: formData.message,
+            }),
+            signal: controller.signal,
+          });
           clearTimeout(timeoutId);
 
           if (relayRes.ok) {
             const relayData = await relayRes.json().catch(() => ({}));
-            if (relayData.success === true || relayData.success === "true" || relayRes.status === 200) {
+            // STRICT check: ONLY accept verified success, never raw 200 without true
+            if (relayData.success === true || relayData.success === "true") {
               delivered = true;
+            } else if (relayData.message) {
+              lastErrorMessage = relayData.message;
             }
           }
         } catch (relayErr) {
           clearTimeout(timeoutId);
-          console.warn("[GOGA API] Static cloud relay exception:", relayErr);
-          if (!lastErrorMessage) {
-            lastErrorMessage = relayErr?.message || "Cloud delivery attempt failed";
-          }
+          console.warn("[GOGA Quote] Web3Forms relay exception:", relayErr);
         }
       }
 
@@ -313,7 +311,7 @@ const Contact = () => {
         setShowSuccess(true);
         setShowError(false);
 
-        // Reset form ONLY on verified delivery
+        // Reset form ONLY when email transmission is confirmed by the server
         setFormData({
           name: "",
           company: "",
@@ -327,18 +325,20 @@ const Contact = () => {
         });
         setErrors({});
       } else {
+        // PRESERVE customer input data on failure so user does not lose their typed requirement
         setShowError(true);
         setErrorMessage(
-          lastErrorMessage || "Unable to send your inquiry. Please check your network connection or email info.gogastainless@gmail.com directly."
+          lastErrorMessage ||
+            "Unable to deliver your requirement to our server. Please try again or email info.gogastainless@gmail.com directly."
         );
       }
     } catch (error) {
-      console.error("Inquiry submission network error:", error);
+      console.error("Inquiry submission error:", error);
       setShowError(true);
       setErrorMessage(
         error && error.name === "AbortError"
-          ? "Request timed out. Please check your connection or contact info.gogastainless@gmail.com directly."
-          : `Submission error: ${error?.message || "Please check your internet connection."}`
+          ? "Request timed out. Please check your network connection or email info.gogastainless@gmail.com directly."
+          : `Submission error: ${error?.message || "Please check your internet connection or email info.gogastainless@gmail.com directly."}`
       );
     } finally {
       setIsSubmitting(false);
@@ -378,7 +378,7 @@ const Contact = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <h4 className="text-base font-bold text-slate-900 uppercase tracking-wide">
-                      Quote Request Transmitted Successfully
+                      Requirement Sent Successfully
                     </h4>
                     <button
                       onClick={closeSuccessToast}
@@ -390,7 +390,7 @@ const Contact = () => {
                   </div>
 
                   <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                    Thank you for choosing Goga Stainless. Your requirement has been registered{submittedTicket ? ` [Ref: ${submittedTicket}]` : ""} and transmitted to our sales desk. Our engineering team will review your specifications and contact you shortly.
+                    Your requirement has been sent successfully. Our team will contact you shortly.
                   </p>
                 </div>
               </div>
@@ -956,16 +956,13 @@ const Contact = () => {
             <div className="flex items-center gap-3 mb-2">
               <span className="w-10 h-0.5 bg-[#D92B20]"></span>
               <span className="text-xs font-bold tracking-[0.25em] text-[#D92B20] uppercase">
-                Inquiry Form
+                Get A Quote
               </span>
             </div>
 
             <h2 className="text-3xl uppercase md:text-4xl font-black text-[#173F52] tracking-tight">
-              Transmit Technical
-              <span className="text-[#D92B20] block mt-1">Inquiry</span>
+              Request A <span className="text-[#D92B20]">Quote</span>
             </h2>
-
-
 
             <div className="mt-4 rounded-xl border border-[#D92B20]/20 bg-[#D92B20]/5 p-4 md:p-5 relative overflow-hidden flex items-center gap-4">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white shadow-sm border border-[#D92B20]/20">
@@ -973,13 +970,77 @@ const Contact = () => {
               </div>
               <div>
                 <h3 className="font-bold text-[#173F52] uppercase tracking-wider text-sm">
-                  Inquiry Routing Gateway
+                  Direct Requirement Desk
                 </h3>
                 <p className="text-slate-500 text-[11px] font-medium uppercase mt-0.5">
-                  Secure Industrial Grade Communication Framework
+                  Send your product specifications directly to our engineering team
                 </p>
               </div>
             </div>
+
+            {/* Inline Success Banner */}
+            <AnimatePresence>
+              {showSuccess && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="mt-5 p-5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 shadow-sm relative overflow-hidden"
+                >
+                  <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-500"></div>
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0 border border-emerald-200">
+                      <CheckCircle className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-sm uppercase tracking-wide text-emerald-900">
+                        Requirement Sent Successfully
+                      </h4>
+                      <p className="text-sm text-emerald-800 mt-1 font-medium leading-relaxed">
+                        Your requirement has been sent successfully. Our team will contact you shortly.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowSuccess(false)}
+                      className="text-emerald-600 hover:text-emerald-800 p-1 rounded-md hover:bg-emerald-100/50 cursor-pointer"
+                      aria-label="Dismiss message"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Inline Error Banner */}
+            <AnimatePresence>
+              {showError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="mt-5 p-4 rounded-xl bg-red-50 border border-red-300 text-red-900 shadow-sm relative overflow-hidden"
+                >
+                  <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-lg">⚠️</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-red-800 font-medium">
+                        {errorMessage || "Unable to send your requirement. Please try again."}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowError(false)}
+                      className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <form onSubmit={handleSubmit} className="space-y-4 mt-6" noValidate>
               <input
@@ -996,7 +1057,7 @@ const Contact = () => {
                 {/* 1. Name */}
                 <div className="space-y-1.5">
                   <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
-                    <span>Representative Name *</span>
+                    <span>Name *</span>
                   </label>
                   <input
                     type="text"
@@ -1014,31 +1075,10 @@ const Contact = () => {
                   )}
                 </div>
 
-                {/* 2. Company Name */}
+                {/* 2. Email */}
                 <div className="space-y-1.5">
                   <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
-                    <span>Company Name *</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="company"
-                    value={formData.company}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    placeholder="e.g. Acme Industrial Corp"
-                    required
-                    className={`h-12 w-full rounded-xl border ${errors.company ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
-                      } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
-                  />
-                  {errors.company && (
-                    <p className="text-red-500 text-xs font-medium mt-1">{errors.company}</p>
-                  )}
-                </div>
-
-                {/* 3. Corporate Email */}
-                <div className="space-y-1.5">
-                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
-                    <span>Corporate Email Address *</span>
+                    <span>Email *</span>
                   </label>
                   <input
                     type="email"
@@ -1046,7 +1086,7 @@ const Contact = () => {
                     value={formData.email}
                     onChange={handleChange}
                     onBlur={handleBlur}
-                    placeholder="company@domain.com"
+                    placeholder="e.g. name@company.com"
                     required
                     className={`h-12 w-full rounded-xl border ${errors.email ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
                       } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
@@ -1056,10 +1096,10 @@ const Contact = () => {
                   )}
                 </div>
 
-                {/* 4. Phone Contact */}
+                {/* 3. Phone */}
                 <div className="space-y-1.5">
                   <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
-                    <span>Phone Matrix Contact *</span>
+                    <span>Phone Number *</span>
                   </label>
                   <input
                     type="tel"
@@ -1067,7 +1107,7 @@ const Contact = () => {
                     value={formData.phone}
                     onChange={handleChange}
                     onBlur={handleBlur}
-                    placeholder="+91 00000 00000"
+                    placeholder="e.g. +91 98765 43210"
                     required
                     className={`h-12 w-full rounded-xl border ${errors.phone ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
                       } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
@@ -1077,10 +1117,26 @@ const Contact = () => {
                   )}
                 </div>
 
-                {/* 5. Product / Material */}
+                {/* 4. Company Name (Optional) */}
                 <div className="space-y-1.5">
                   <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
-                    <span>Product / Material *</span>
+                    <span>Company Name</span>
+                    <span className="text-[10px] text-slate-400 font-normal lowercase tracking-normal">optional</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="company"
+                    value={formData.company}
+                    onChange={handleChange}
+                    placeholder="e.g. Acme Industrial Corp (optional)"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20"
+                  />
+                </div>
+
+                {/* 5. Product / Material Required */}
+                <div className="space-y-1.5">
+                  <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
+                    <span>Product / Material Required *</span>
                   </label>
                   <input
                     type="text"
@@ -1088,7 +1144,7 @@ const Contact = () => {
                     value={formData.product}
                     onChange={handleChange}
                     onBlur={handleBlur}
-                    placeholder="e.g. Stainless Steel Seamless Pipes"
+                    placeholder="e.g. Stainless Steel Seamless Pipes, Flanges"
                     required
                     className={`h-12 w-full rounded-xl border ${errors.product ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
                       } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
@@ -1101,7 +1157,7 @@ const Contact = () => {
                 {/* 6. Quantity */}
                 <div className="space-y-1.5">
                   <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
-                    <span>Quantity / Volume *</span>
+                    <span>Quantity *</span>
                   </label>
                   <input
                     type="text"
@@ -1109,7 +1165,7 @@ const Contact = () => {
                     value={formData.quantity}
                     onChange={handleChange}
                     onBlur={handleBlur}
-                    placeholder="e.g. 500 Meters / 10 Tons"
+                    placeholder="e.g. 500 Meters / 10 Tons / 250 Pcs"
                     required
                     className={`h-12 w-full rounded-xl border ${errors.quantity ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
                       } px-4 text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
@@ -1119,7 +1175,7 @@ const Contact = () => {
                   )}
                 </div>
 
-                {/* 7. Component Specification (span 2) */}
+                {/* 7. Component Specification (span 2, optional) */}
                 <div className="sm:col-span-2 space-y-1.5">
                   <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
                     <span>Component Specification / Grade</span>
@@ -1138,7 +1194,7 @@ const Contact = () => {
                 {/* 8. Detailed Requirements */}
                 <div className="sm:col-span-2 space-y-1.5 mt-1">
                   <label className="uppercase text-[11px] tracking-[0.2em] font-bold text-slate-500 flex items-center justify-between">
-                    <span>Detailed Requirements & Message *</span>
+                    <span>Requirement / Message *</span>
                   </label>
                   <textarea
                     name="message"
@@ -1146,7 +1202,7 @@ const Contact = () => {
                     onChange={handleChange}
                     onBlur={handleBlur}
                     rows="3"
-                    placeholder="Specify dimensions, tolerances, surface finish, delivery location, and specific standards..."
+                    placeholder="Describe your technical requirements, specifications, dimensions, tolerances, delivery timeline..."
                     required
                     className={`w-full rounded-xl border ${errors.message ? "border-red-400 bg-red-50/20" : "border-slate-200 bg-slate-50"
                       } p-4 text-slate-800 outline-none transition-all resize-none placeholder:text-slate-400 focus:border-[#D92B20] focus:bg-white focus:ring-2 focus:ring-[#D92B20]/20`}
@@ -1165,11 +1221,11 @@ const Contact = () => {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Submitting Quote Request...
+                    Sending...
                   </>
                 ) : (
                   <>
-                    Submit Quote Request
+                    Send Requirement
                     <Send className="h-4 w-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
                   </>
                 )}
