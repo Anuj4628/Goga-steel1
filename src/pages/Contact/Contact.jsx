@@ -25,6 +25,7 @@ import { FaArrowRight } from "react-icons/fa";
 
 import logo from "../../assets/images/logo/goga-logo-wordmark.png";
 import testimonials from "../../data/testimonials";
+import { sendQuoteEnquiry } from "../../services/emailService";
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -44,7 +45,6 @@ const Contact = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [submittedTicket, setSubmittedTicket] = useState("");
 
   // Prefill product or material from URL search parameters and scroll to quote form if targeted
   useEffect(() => {
@@ -180,6 +180,13 @@ const Contact = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Bot spam honeypot
+    if (formData.website) {
+      setIsSubmitting(false);
+      setShowSuccess(true);
+      return;
+    }
+
     if (!validateAll()) {
       setShowError(true);
       setErrorMessage("Please complete all required fields highlighted below.");
@@ -195,150 +202,32 @@ const Contact = () => {
     const ticketId = `GS-RFQ-${Math.floor(100000 + Math.random() * 900000)}`;
 
     try {
-      const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
-      const primaryUrl = baseUrl ? `${baseUrl}/api/send-quote` : "/api/send-quote";
-      const phpFallbackUrl = baseUrl ? `${baseUrl}/api/send-quote.php` : "/api/send-quote.php";
-      const customApiUrl = import.meta.env.VITE_QUOTE_API_URL || "";
-      const web3FormsKey = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY || "";
+      await sendQuoteEnquiry(formData, ticketId);
 
-      const sendToEndpoint = async (url) => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000);
-        try {
-          const res = await fetch(url, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-            body: JSON.stringify({
-              ...formData,
-              ticketId,
-            }),
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
+      setShowSuccess(true);
+      setShowError(false);
+      setErrorMessage("");
 
-          const contentType = res.headers.get("content-type") || "";
-          if (!contentType.includes("application/json")) {
-            return { isHtml: true, status: res.status, ok: false, error: "Non-JSON response from server." };
-          }
-          const data = await res.json().catch(() => ({}));
-          const isDelivered = res.ok && (data.success === true || data.status === "success");
-          return { isHtml: false, status: res.status, data, ok: isDelivered };
-        } catch (fetchErr) {
-          clearTimeout(timeoutId);
-          return { networkError: true, error: fetchErr, ok: false };
-        }
-      };
-
-      let delivered = false;
-      let lastErrorMessage = "";
-
-      // Step 1: Attempt primary API endpoint (/api/send-quote)
-      let attempt = await sendToEndpoint(primaryUrl);
-
-      // Step 2: If primary didn't succeed and phpFallbackUrl is different, try direct PHP endpoint (/api/send-quote.php)
-      if (!attempt.ok && primaryUrl !== phpFallbackUrl) {
-        console.info("[GOGA Quote] Primary endpoint failed, attempting direct PHP endpoint...", attempt.status || attempt.error);
-        const phpAttempt = await sendToEndpoint(phpFallbackUrl);
-        if (phpAttempt.ok) {
-          attempt = phpAttempt;
-        } else if (phpAttempt.data?.error) {
-          lastErrorMessage = phpAttempt.data.error;
-        }
-      }
-
-      if (attempt.ok && attempt.data?.success === true) {
-        delivered = true;
-      } else if (attempt.data?.error) {
-        lastErrorMessage = String(attempt.data.error);
-      }
-
-      // Step 3: If still not delivered, check for explicitly configured custom API or Web3Forms key
-      if (!delivered && customApiUrl) {
-        console.info("[GOGA Quote] Attempting custom configured API endpoint...");
-        const customAttempt = await sendToEndpoint(customApiUrl);
-        if (customAttempt.ok) {
-          delivered = true;
-        } else if (customAttempt.data?.error) {
-          lastErrorMessage = customAttempt.data.error;
-        }
-      }
-
-      if (!delivered && web3FormsKey) {
-        console.info("[GOGA Quote] Attempting Web3Forms relay fallback...");
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000);
-        try {
-          const relayRes = await fetch("https://api.web3forms.com/submit", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Accept: "application/json" },
-            body: JSON.stringify({
-              access_key: web3FormsKey,
-              subject: `New Get Quote Request: ${formData.product} [${ticketId}]`,
-              from_name: formData.name,
-              name: formData.name,
-              email: formData.email,
-              company: formData.company,
-              phone: formData.phone,
-              product: formData.product,
-              quantity: formData.quantity,
-              specification: formData.specification,
-              message: formData.message,
-            }),
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
-
-          if (relayRes.ok) {
-            const relayData = await relayRes.json().catch(() => ({}));
-            // STRICT check: ONLY accept verified success, never raw 200 without true
-            if (relayData.success === true || relayData.success === "true") {
-              delivered = true;
-            } else if (relayData.message) {
-              lastErrorMessage = relayData.message;
-            }
-          }
-        } catch (relayErr) {
-          clearTimeout(timeoutId);
-          console.warn("[GOGA Quote] Web3Forms relay exception:", relayErr);
-        }
-      }
-
-      if (delivered) {
-        setSubmittedTicket(ticketId);
-        setShowSuccess(true);
-        setShowError(false);
-
-        // Reset form ONLY when email transmission is confirmed by the server
-        setFormData({
-          name: "",
-          company: "",
-          email: "",
-          phone: "",
-          product: "",
-          quantity: "",
-          specification: "",
-          message: "",
-          website: "",
-        });
-        setErrors({});
-      } else {
-        // PRESERVE customer input data on failure so user does not lose their typed requirement
-        setShowError(true);
-        setErrorMessage(
-          lastErrorMessage ||
-            "Unable to deliver your requirement to our server. Please try again or email info.gogastainless@gmail.com directly."
-        );
-      }
+      // Reset form only on confirmed successful email transmission
+      setFormData({
+        name: "",
+        company: "",
+        email: "",
+        phone: "",
+        product: "",
+        quantity: "",
+        specification: "",
+        message: "",
+        website: "",
+      });
+      setErrors({});
     } catch (error) {
-      console.error("Inquiry submission error:", error);
+      console.error("[GOGA Quote] Submission error:", error);
       setShowError(true);
+      setShowSuccess(false);
       setErrorMessage(
-        error && error.name === "AbortError"
-          ? "Request timed out. Please check your network connection or email info.gogastainless@gmail.com directly."
-          : `Submission error: ${error?.message || "Please check your internet connection or email info.gogastainless@gmail.com directly."}`
+        error?.message ||
+          "Unable to send your enquiry. Please check your internet connection or email info.gogastainless@gmail.com directly."
       );
     } finally {
       setIsSubmitting(false);
@@ -363,36 +252,28 @@ const Contact = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -40, scale: 0.96 }}
             transition={{ duration: 0.35, type: "spring", stiffness: 300 }}
-            className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] w-[calc(100%-2rem)] max-w-xl"
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] w-[calc(100%-2rem)] max-w-lg"
           >
-            <div className="relative bg-white border border-emerald-300 rounded-2xl shadow-2xl p-5 overflow-hidden">
+            <div className="relative bg-white border border-emerald-300 rounded-2xl shadow-2xl p-4 overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-400 via-teal-500 to-green-500"></div>
 
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0">
-                  <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center border border-emerald-200">
-                    <CheckCircle className="w-6 h-6 text-emerald-600" />
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center border border-emerald-200 text-emerald-600 flex-shrink-0">
+                    <CheckCircle className="w-5 h-5" />
                   </div>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-base font-bold text-slate-900 uppercase tracking-wide">
-                      Requirement Sent Successfully
-                    </h4>
-                    <button
-                      onClick={closeSuccessToast}
-                      className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                      aria-label="Close notification"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                    Your requirement has been sent successfully. Our team will contact you shortly.
+                  <p className="text-sm md:text-base font-semibold text-emerald-900">
+                    Your enquiry has been sent successfully!
                   </p>
                 </div>
+
+                <button
+                  onClick={closeSuccessToast}
+                  className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex-shrink-0"
+                  aria-label="Close notification"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
             </div>
           </motion.div>
@@ -985,30 +866,26 @@ const Contact = () => {
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="mt-5 p-5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 shadow-sm relative overflow-hidden"
+                  className="mt-5 p-4 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 shadow-sm relative overflow-hidden flex items-center justify-between gap-3"
+                  role="status"
                 >
-                  <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-500"></div>
-                  <div className="flex items-start gap-3.5">
-                    <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0 border border-emerald-200">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500"></div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0 border border-emerald-200">
                       <CheckCircle className="w-5 h-5" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-sm uppercase tracking-wide text-emerald-900">
-                        Requirement Sent Successfully
-                      </h4>
-                      <p className="text-sm text-emerald-800 mt-1 font-medium leading-relaxed">
-                        Your requirement has been sent successfully. Our team will contact you shortly.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowSuccess(false)}
-                      className="text-emerald-600 hover:text-emerald-800 p-1 rounded-md hover:bg-emerald-100/50 cursor-pointer"
-                      aria-label="Dismiss message"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                    <p className="text-sm md:text-base font-semibold text-emerald-800">
+                      Your enquiry has been sent successfully!
+                    </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowSuccess(false)}
+                    className="text-emerald-600 hover:text-emerald-800 p-1 rounded-md hover:bg-emerald-100/50 cursor-pointer"
+                    aria-label="Dismiss message"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
